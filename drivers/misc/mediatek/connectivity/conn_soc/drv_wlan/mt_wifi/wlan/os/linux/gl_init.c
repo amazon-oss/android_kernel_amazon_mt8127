@@ -702,7 +702,7 @@ int g_u4P2POnOffing = 0;
 #endif
 #define BOARD_ID_abf123_STR "0031"
 #define BOARD_ID_abh123_STR "0110"
-#define BOARD_ID_abc123_STR "0037"
+#define BOARD_ID_AUSTIN_STR "0037"
 char idme_board_id[16];
 
 
