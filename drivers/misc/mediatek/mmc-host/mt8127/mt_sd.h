@@ -1352,6 +1352,7 @@ struct msdc_host
 #ifdef CONFIG_AMAZON_METRICS_LOG
 	struct delayed_work metrics_work;
 	bool metrics_enable;
+#endif
 	u32 crc_count_p;	/* reported crc count */
 	u32 crc_invalid_count_p;	/* reported crc invalid count eg CMD19 */
 	u32 req_count_p; /* reported request count */
@@ -1362,7 +1363,6 @@ struct msdc_host
 	u32 pc_suspend_p;	/* reported suspend/resume count */
 	u32 inserted_p; /* reported card detection count */
 	u32 inserted; /* total card detection cound */
-#endif
 };
 typedef enum {
    TRAN_MOD_PIO,
