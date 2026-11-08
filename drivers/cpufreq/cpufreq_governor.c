@@ -65,7 +65,7 @@ void dbs_check_cpu(struct dbs_data *dbs_data, int cpu)
 
 	policy = cdbs->cur_policy;
 
-	/* Get Absolute Load (in terms of freq for ondemand gov) */
+	/* Get Absolute Load */
 	for_each_cpu(j, policy->cpus) {
 		struct cpu_dbs_common_info *j_cdbs;
 		u64 cur_wall_time, cur_idle_time;
@@ -133,9 +133,7 @@ void dbs_check_cpu(struct dbs_data *dbs_data, int cpu)
 #endif
 		// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-		if (dbs_data->cdata->governor == GOV_ONDEMAND
-		    || dbs_data->cdata->governor == GOV_HOTPLUG // <-XXX
-		   ) {
+		if (dbs_data->cdata->governor == GOV_HOTPLUG) { // <-XXX
 			freq_avg = __cpufreq_driver_getavg(policy, j);
 
 			if (freq_avg <= 0)
