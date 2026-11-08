@@ -137,8 +137,10 @@ static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 }
 
 #ifdef CONFIG_SECURITY_SELINUX_KERN_PERMISSIVE
-void selinux_set_enforce(bool enforce)
+bool selinux_set_enforce(bool enforce)
 {
+		bool retval = selinux_enforcing;
+
         if (enforce != selinux_enforcing) {
                 audit_log(current->audit_context, GFP_KERNEL, AUDIT_MAC_STATUS,
                         "enforcing=%d old_enforcing=%d auid=%u ses=%u",
@@ -151,11 +153,13 @@ void selinux_set_enforce(bool enforce)
                 selnl_notify_setenforce(selinux_enforcing);
                 selinux_status_update_setenforce(selinux_enforcing);
         }
+
+        return retval;
 }
 #else
-void selinux_set_enforce(bool enforce)
+bool selinux_set_enforce(bool enforce)
 {
-        return;
+        return enforce;
 }
 #endif
 
