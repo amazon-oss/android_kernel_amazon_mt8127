@@ -618,6 +618,7 @@ static int rawv6_send_hdrinc(struct sock *sk, void *from, int length,
 	}
 	if (length < sizeof(struct ipv6hdr))
 		return -EINVAL;
+
 	if (flags&MSG_PROBE)
 		goto out;
 

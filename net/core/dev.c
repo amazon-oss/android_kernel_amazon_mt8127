@@ -128,6 +128,7 @@
 #include <linux/pci.h>
 #include <linux/inetdevice.h>
 #include <linux/cpu_rmap.h>
+#include <linux/cpumask.h>
 #include <linux/static_key.h>
 #include <net/udp.h>
 #include "net-sysfs.h"
@@ -6363,6 +6364,9 @@ static int __init net_dev_init(void)
 
 	open_softirq(NET_TX_SOFTIRQ, net_tx_action);
 	open_softirq(NET_RX_SOFTIRQ, net_rx_action);
+#ifdef CONFIG_ARCH_MT8127_TANK
+	irq_set_affinity(NET_RX_SOFTIRQ, cpumask_of(2));
+#endif
 
 	hotcpu_notifier(dev_cpu_callback, 0);
 	dst_init();

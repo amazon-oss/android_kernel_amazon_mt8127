@@ -823,7 +823,7 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
 	spin_lock_bh(&nf_conntrack_lock);
 	exp = nf_ct_find_expectation(net, zone, tuple);
 	if (exp) {
-		pr_debug("conntrack: expectation arrives ct=%pK exp=%p\n",
+		pr_debug("conntrack: expectation arrives ct=%pK exp=%pK\n",
 			 ct, exp);
 		/* Welcome, Mr. Bond.  We've been expecting you... */
 		__set_bit(IPS_EXPECTED_BIT, &ct->status);

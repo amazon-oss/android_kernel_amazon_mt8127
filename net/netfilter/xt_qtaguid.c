@@ -1066,18 +1066,6 @@ static struct sock_tag *get_sock_stat_nl(const struct sock *sk)
 	return sock_tag_tree_search(&sock_tag_tree, sk);
 }
 
-static struct sock_tag *get_sock_stat(const struct sock *sk)
-{
-	struct sock_tag *sock_tag_entry;
-	MT_DEBUG("qtaguid: get_sock_stat(sk=%p)\n", sk);
-	if (!sk)
-		return NULL;
-	spin_lock_bh(&sock_tag_list_lock);
-	sock_tag_entry = get_sock_stat_nl(sk);
-	spin_unlock_bh(&sock_tag_list_lock);
-	return sock_tag_entry;
-}
-
 static int ipx_proto(const struct sk_buff *skb,
 		     struct xt_action_param *par)
 {
@@ -1304,12 +1292,15 @@ static void if_tag_stat_update(const char *ifname, uid_t uid,
 	 * Look for a tagged sock.
 	 * It will have an acct_uid.
 	 */
-	sock_tag_entry = get_sock_stat(sk);
+	spin_lock_bh(&sock_tag_list_lock);
+	sock_tag_entry = sk ? get_sock_stat_nl(sk) : NULL;
 	if (sock_tag_entry) {
 		tag = sock_tag_entry->tag;
 		acct_tag = get_atag_from_tag(tag);
 		uid_tag = get_utag_from_tag(tag);
-	} else {
+	}
+	spin_unlock_bh(&sock_tag_list_lock);
+	if (!sock_tag_entry) {
 		acct_tag = make_atag_from_value(0);
 		tag = combine_atag_with_uid(acct_tag, uid);
 		uid_tag = make_tag_from_uid(uid);
@@ -2058,6 +2049,8 @@ static int ctrl_cmd_delete(const char *input)
 
 	/* Delete tag counter-sets */
 	spin_lock_bh(&tag_counter_set_list_lock);
+
+
 	/* Counter sets are only on the uid tag, not full tag */
 	tcs_entry = tag_counter_set_tree_search(&tag_counter_set_tree, tag);
 	if (tcs_entry) {
@@ -2298,7 +2291,7 @@ static int ctrl_cmd_tag(const char *input)
 			BUG_ON(tag_ref_entry->num_sock_tags <= 0);
 			tag_ref_entry->num_sock_tags--;
 			free_tag_ref_from_utd_entry(tag_ref_entry,
-						    uid_tag_data_entry);
+					uid_tag_data_entry);
 			spin_unlock_bh(&uid_tag_data_tree_lock);
 			spin_unlock_bh(&sock_tag_list_lock);
 			res = -ENOMEM;
@@ -2408,8 +2401,13 @@ static int ctrl_cmd_untag(const char *input)
 			     "User space forgot to open /dev/xt_qtaguid? "
 			     "pid=%u tgid=%u uid=%u\n", __func__,
 			     current->pid, current->tgid, current_fsuid());
-	else
+	/* This check is needed because tagging from a process that
+	 * didn’t open /dev/xt_qtaguid still adds the sock_tag_entry
+	 * to sock_tag_tree.
+	 */
+	if (sock_tag_entry->list.next)
 		list_del(&sock_tag_entry->list);
+
 	spin_unlock_bh(&uid_tag_data_tree_lock);
 	/*
 	 * We don't free tag_ref from the utd_entry here,
