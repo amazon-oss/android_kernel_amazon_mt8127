@@ -1741,10 +1741,16 @@ static int ksmd_should_run(void)
 
 static int ksm_scan_thread(void *nothing)
 {
+#ifdef CONFIG_ARCH_MT8127_TANK
+	struct sched_param param = {.sched_priority = 0};
+	set_freezable();
+	sched_setscheduler(current, SCHED_IDLE, &param);
+#else
 	set_freezable();
 	// M: set KSMD's priority to the lowest value
 	set_user_nice(current, 19);
 	//set_user_nice(current, 5);
+#endif
 
 	while (!kthread_should_stop()) {
 		mutex_lock(&ksm_thread_mutex);
