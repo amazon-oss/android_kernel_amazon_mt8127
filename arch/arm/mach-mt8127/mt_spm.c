@@ -283,7 +283,7 @@ int spm_dvfs_ctrl_volt(u32 value)
     u32 ap_dvfs_con;
     int retry = 0;
 
-#ifdef MTK_ALPS_BOX_SUPPORT
+#ifdef CONFIG_MTK_PMIC_DUMMY
     return 0;
 #endif
     ap_dvfs_con = spm_read(SPM_AP_DVFS_CON_SET);

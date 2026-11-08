@@ -627,7 +627,11 @@ static int dpidle_cpu_pdn = 1;
 static inline int dpidle_handler(int cpu)
 {
 	int ret = 0;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	if (idle_switch[IDLE_TYPE_DP]) {
+#else
 	if (idle_switch[IDLE_TYPE_DP] && !BMT_status.charger_exist) {
+#endif
 		if (dpidle_can_enter()) {
 			spm_go_to_dpidle(dpidle_cpu_pdn, 0);
 			ret = 1;

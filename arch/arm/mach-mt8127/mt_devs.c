@@ -39,6 +39,10 @@
 #include <linux/mdump.h>
 #endif
 
+#ifdef CONFIG_RFKILL
+#include <linux/rfkill-gpio.h>
+#endif
+
 #include <linux/platform_data/mtk_thermal.h>
 
 static char serial_number[SERIALNO_LEN];
@@ -59,12 +63,131 @@ flashdev_info_t *gen_FlashTable_ptr;
 flashdev_info_t gen_FlashTable_p[MAX_FLASH];
 #endif
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+extern int __init tank_wlan_init(void);
+#endif
+
 struct {
 	u32 base;
 	u32 size;
 } bl_fb = {0, 0};
 
 static int use_bl_fb = 0;
+
+#if defined(CONFIG_MT_SND_SOC_8127)
+static struct platform_device mtk_soc_dl1_pcm_device = {
+	.name = "mt8127-soc-dl1-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+
+static struct platform_device mtk_soc_dl1_awb_pcm_device = {
+	.name = "mt8127-soc-dl1-awb-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+
+static struct platform_device mtk_soc_dummy_codec_device = {
+	.name = "mt8127-soc-dummy-codec",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_codec_device = {
+	.name = "mt8127-soc-codec",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device routing_control_device = {
+	.name = "Routing-Control",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_dai_driver_device = {
+	.name = "mt8127-soc-dai-driver",
+	.id = PLATFORM_DEVID_NONE,
+};
+
+static struct platform_device mtk_soc_voip_bt_in_device = {
+	.name = "mt8127-soc-voip-bt-in",
+	.id = PLATFORM_DEVID_NONE,
+};
+
+static struct platform_device mtk_soc_ul1_pcm_device = {
+	.name = "mt8127-soc-ul1-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_voip_bt_out_device = {
+	.name = "mt8127-soc-voip-bt-out",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_i2s0_pcm_device = {
+	.name = "mt8127-soc-i2s0-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_i2s0dl1_pcm_device = {
+	.name = "mt8127-soc-i2s0dl1-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_dummy_pcm_device = {
+	.name = "mt8127-soc-dummy-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_fm_i2s_pcm_device = {
+	.name = "mt8127-soc-fm-i2s-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_fm_i2s_awb_pcm_device = {
+	.name = "mt8127-soc-fm-i2s-awb-pcm",
+	 .id = PLATFORM_DEVID_NONE,
+};
+
+static struct platform_device mtk_soc_hdmi_pcm_device = {
+	.name = "mt8127-soc-hdmi-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+
+static struct platform_device mtk_soc_i2s0awb_pcm_device = {
+	.name = "mt8127-soc-i2s0awb-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+
+static struct platform_device mtk_soc_routing_pcm_device = {
+	.name = "mt8127-soc-routing-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+
+
+static struct platform_device mtk_soc_uldlloopback_pcm_device = {
+	.name = "mt8127-soc-uldlloopback-pcm",
+	.id = PLATFORM_DEVID_NONE,
+};
+static struct platform_device mtk_soc_machine_device = {
+	.name = "mt8127-soc-machine",
+	.id = PLATFORM_DEVID_NONE,
+	.dev = {
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+		},
+};
+
+static struct platform_device *mtk_soc_audio_devices[] __initdata = {
+	&mtk_soc_dl1_pcm_device,
+/*	&mtk_soc_dl1_awb_pcm_device,*/
+	&mtk_soc_dummy_codec_device,
+       &mtk_soc_codec_device,
+       &routing_control_device,
+	&mtk_soc_dai_driver_device,
+        &mtk_soc_voip_bt_in_device,
+	&mtk_soc_ul1_pcm_device,
+	/* &mtk_soc_pmic_codec_device, */
+        &mtk_soc_voip_bt_out_device,
+/* &mtk_soc_i2s0_pcm_device, */
+	&mtk_soc_i2s0dl1_pcm_device,
+	&mtk_soc_dummy_pcm_device,
+/* &mtk_soc_fm_i2s_pcm_device, */
+/* &mtk_soc_fm_i2s_awb_pcm_device, */
+	&mtk_soc_hdmi_pcm_device,
+/* &mtk_soc_i2s0awb_pcm_device, */
+	&mtk_soc_routing_pcm_device,
+/* &mtk_soc_uldlloopback_pcm_device, */
+	&mtk_soc_machine_device,
+};
+#endif
+
 
 /*=======================================================================*/
 /* MT8127 USB GADGET                                                     */
@@ -685,10 +808,27 @@ static struct platform_device kpd_pdev = {
 /* MT6589 RFKill module (BT and WLAN)                                             */
 /*=======================================================================*/
 /* MT66xx RFKill BT */
+#ifdef CONFIG_ARCH_MT8127_TANK
+static struct rfkill_gpio_platform_data bt_rfkill_platform_data = {
+	.name		= "bt_rfkill",
+	.reset_gpio	= 28,
+	.shutdown_gpio	= -1,
+	.type	= 2,
+};
+
+struct platform_device mt_rfkill_device = {
+    .name   = "bluetooth_rfkill",
+    .id     = -1,
+    .dev	= {
+		.platform_data = &bt_rfkill_platform_data,
+	},
+};
+#else
 struct platform_device mt_rfkill_device = {
     .name   = "mt-rfkill",
     .id     = -1,
 };
+#endif
 #endif
 
 /*=======================================================================*/
@@ -772,6 +912,49 @@ static struct mtk_thermal_platform_data virtual_sensor_thermal_data = {
 	.num_trips = 5,
 	.mode = THERMAL_DEVICE_DISABLED,
 	.polling_delay = 1000,
+#ifdef CONFIG_ARCH_MT8127_TANK
+	.trips[0] = {.temp = 61000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0,
+		     .cdev[0] = {
+			.type = "thermal-cpufreq-1", .upper = 1, .lower = 0},
+		     .cdev[1] = {
+			.type = "cpuhotplug", .upper = 1, .lower = 0},
+             .cdev[2] = {
+			.type = "wifi", .upper = 1, .lower = 0},
+            .cdev[3] = {
+            .type = "vsync", .upper = 1, .lower = 0},
+	},
+	.trips[1] = {.temp = 62000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0,
+		     .cdev[0] = {
+			.type = "thermal-cpufreq-1", .upper = 2, .lower = 1},
+		     .cdev[1] = {
+			.type = "cpuhotplug", .upper = 2, .lower = 1},
+             .cdev[2] = {
+			.type = "wifi", .upper = 2, .lower = 1},
+            .cdev[3] = {
+            .type = "vsync", .upper = 2, .lower = 1},
+	},
+	.trips[2] = {.temp = 63000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0,
+		     .cdev[0] = {
+			.type = "thermal-cpufreq-1", .upper = 3, .lower = 2},
+		     .cdev[1] = {
+			.type = "cpuhotplug", .upper = 3, .lower = 2},
+             .cdev[2] = {
+			.type = "wifi", .upper = 3, .lower = 2},
+            .cdev[3] = {
+            .type = "vsync", .upper = 3, .lower = 2},
+	},
+	.trips[3] = {.temp = 64000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0,
+		     .cdev[0] = {
+			.type = "thermal-cpufreq-1", .upper = 4, .lower = 3},
+		     .cdev[1] = {
+			.type = "cpuhotplug", .upper = 4, .lower = 3},
+             .cdev[2] = {
+			.type = "wifi", .upper = 4, .lower = 3},
+            .cdev[3] = {
+            .type = "vsync", .upper = 4, .lower = 3},
+	},
+	.trips[4] = {.temp = 75000, .type = THERMAL_TRIP_CRITICAL, .hyst = 0},
+#else
 	.trips[0] = {.temp = 50250, .type = THERMAL_TRIP_ACTIVE, .hyst = 0,
 		     .cdev[0] = {
 			.type = "thermal-cpufreq-1", .upper = 1, .lower = 0},
@@ -813,6 +996,7 @@ static struct mtk_thermal_platform_data virtual_sensor_thermal_data = {
 			.type = "cpuhotplug", .upper = 4, .lower = 3},
 	},
 	.trips[4] = {.temp = 60000, .type = THERMAL_TRIP_CRITICAL, .hyst = 0},
+#endif
 };
 
 struct platform_device thermal_pdev = {
@@ -1914,7 +2098,7 @@ __init int mt_board_init(void)
 	}
 #endif
 
-#if defined(CONFIG_SND_SOC_MT8127)
+#if defined(CONFIG_MT_SND_SOC_8127)
 	retval = platform_add_devices(mtk_soc_audio_devices, ARRAY_SIZE(mtk_soc_audio_devices));
 	if (retval != 0){
 		printk("platform_add_devices(mtk_soc_audio_devices) fail:%d\n", retval);
@@ -2334,13 +2518,13 @@ retval = platform_device_register(&dummychar_device);
 //=======================================================================
 // Image sensor
 //=======================================================================
-#if 1 ///defined(CONFIG_VIDEO_CAPTURE_DRIVERS)
+#ifndef CONFIG_ARCH_MT8127_TANK ///defined(CONFIG_VIDEO_CAPTURE_DRIVERS)
     retval = platform_device_register(&sensor_dev);
     if (retval != 0){
     	return retval;
     }
 #endif
-#if 1 ///defined(CONFIG_VIDEO_CAPTURE_DRIVERS)
+#ifndef CONFIG_ARCH_MT8127_TANK ///defined(CONFIG_VIDEO_CAPTURE_DRIVERS)
     retval = platform_device_register(&sensor_dev_bus2);
     if (retval != 0){
     	return retval;
@@ -2351,7 +2535,7 @@ retval = platform_device_register(&dummychar_device);
 //=======================================================================
 // Lens motor
 //=======================================================================
-#if 1  //defined(CONFIG_ACTUATOR)
+#ifndef CONFIG_ARCH_MT8127_TANK  //defined(CONFIG_ACTUATOR)
     retval = platform_device_register(&actuator_dev);
     if (retval != 0){
         return retval;
@@ -2364,7 +2548,7 @@ retval = platform_device_register(&dummychar_device);
 //=======================================================================
 // Camera ISP
 //=======================================================================
-#if 1 //defined(CONFIG_ISP_MT8127)
+#ifndef CONFIG_ARCH_MT8127_TANK //defined(CONFIG_ISP_MT8127)
     retval = platform_device_register(&mt_isp_dev);
     if (retval != 0){
         return retval;
@@ -2385,7 +2569,7 @@ retval = platform_device_register(&dummychar_device);
     }
 #endif
 
-#if 1
+#ifndef CONFIG_ARCH_MT8127_TANK
 	retval = platform_device_register(&camera_sysram_dev);
 	if (retval != 0){
 		return retval;
@@ -2399,13 +2583,15 @@ retval = platform_device_register(&dummychar_device);
 	}
 #endif
 
+#ifndef CONFIG_ARCH_MT8127_TANK
 	retval = platform_device_register(&camera_pipemgr_dev);
 	if (retval != 0){
 		return retval;
 	}
+#endif
 
 
-#if 1//defined(CONFIG_MTK_NFC) //NFC
+#ifndef CONFIG_ARCH_MT8127_TANK //defined(CONFIG_MTK_NFC) //NFC
 	retval = platform_device_register(&mtk_nfc_6605_dev);
 	printk("mtk_nfc_6605_dev register ret %d", retval);
 	if (retval != 0){
@@ -2413,12 +2599,12 @@ retval = platform_device_register(&dummychar_device);
 	}
 #endif
 
-//#if defined(CONFIG_MTK_WIFI)
+#ifndef CONFIG_ARCH_MT8127_TANK //defined(CONFIG_MTK_WIFI)
 	retval = platform_device_register(&mt_device_wifi);
 	if (retval != 0){
 		return retval;
 	}
-//#endif
+#endif
 
 #if defined (CUSTOM_KERNEL_SSW)
 	retval = platform_device_register(&ssw_device);
@@ -2440,6 +2626,15 @@ retval = platform_device_register(&dummychar_device);
     if (retval != 0){
         return retval;
     }
+
+#ifdef CONFIG_ARCH_MT8127_TANK
+    retval = tank_wlan_init();
+
+    printk("%s[%d] ret: %d\n", __FILE__, __LINE__, retval);
+    if (retval != 0){
+        return retval;
+    }
+#endif
 
     return 0;
 }

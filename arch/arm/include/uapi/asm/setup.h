@@ -202,7 +202,11 @@ typedef struct {
 
 #ifdef CONFIG_IDME
 #define ATAG_IDME      0x54410010
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define ATAG_IDME_SIZE 15360
+#else
 #define ATAG_IDME_SIZE 8736
+#endif
 struct tag_idme {
 	u8 idme[ATAG_IDME_SIZE+1];
 };

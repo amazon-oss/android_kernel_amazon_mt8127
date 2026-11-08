@@ -42,7 +42,7 @@ obj-y += camera_sysram.o
 obj-y += camera_pipe_mgr.o
 #obj-y += camera_eis.o
 #obj-y += camera_fdvt.o
-ifeq ($(MTK_ALPS_BOX_SUPPORT), yes)
+ifeq ($(CONFIG_MTK_PMIC_DUMMY),y)
 obj-y += mt_pm_ldo_dummy.o
 else
 obj-y += mt_pm_ldo.o
@@ -57,6 +57,7 @@ obj-y += mt_spm.o mt_spm_sleep.o mt_spm_mtcmos.o
 ccflags-$(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT) += -I$(srctree)/include/trustzone/
 obj-y += mt_sleep.o
 obj-y += mt_cpufreq.o mt_cpu_ss.o
+obj-$(CONFIG_ARCH_MT8127_TANK) += mt_emifreq.o
 obj-y += mt_dormant.o cpu_dormant.o
 obj-y += mt_dcm.o mt_idle.o
 obj-y += mt_clkmgr_common.o

@@ -188,6 +188,10 @@ enum hrtimer_restart mt_ptp_volt_timer_func(struct hrtimer *timer)
 
 int mt_ptp_volt_thread_handler(void *unused)
 {
+#ifdef CONFIG_ARCH_MT8127_TANK
+    static bool is_cpufreq_enabled = false;
+
+#endif
     do
     {
         ktime_set(mt_ptp_volt_period_s, mt_ptp_volt_period_ns);
@@ -195,6 +199,18 @@ int mt_ptp_volt_thread_handler(void *unused)
         wait_event_interruptible(mt_ptp_volt_timer_waiter, mt_ptp_volt_timer_flag != 0);
         mt_ptp_volt_timer_flag = 0;
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+        /* Move cpufreq_enabled from interrupt connext to thread context. Because mt_cpufreq_enable_by_ptpod()
+         * in tank project will call __cpufreq_notify_transition() and it checks irq's status by
+         * BUG_ON(irqs_disabled()).
+         */
+        if (!is_cpufreq_enabled) {
+            mt_cpufreq_enable_by_ptpod(); // enable DVFS
+            mt_fh_popod_restore(); // enable frequency hopping (main PLL)
+            is_cpufreq_enabled = true;
+	}
+
+#endif
         mt_cpufreq_voltage_set_by_ptpod(ptpod_pmic_volt, ptp_array_size);
 
     } while (!kthread_should_stop());
@@ -1025,9 +1041,11 @@ irqreturn_t mt_ptp_isr(int irq, void *dev_id)
             ptp_write(PTP_PTPEN, 0x0);
             ptp_write(PTP_PTPINTSTS, 0x1);
 
+#ifndef CONFIG_ARCH_MT8127_TANK
             mt_cpufreq_enable_by_ptpod(); // enable DVFS
             mt_fh_popod_restore(); // enable frequency hopping (main PLL)
 
+#endif
             PTP_INIT_02();
         }
         else if ((temp_ptpen & 0x7) == 0x5) // PTP init2

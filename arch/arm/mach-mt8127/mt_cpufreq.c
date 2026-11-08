@@ -36,6 +36,11 @@
 #include "mach/sync_write.h"
 #include "mach/pmic_mt6323_sw.h"
 
+#ifdef CONFIG_MTK_SY8827_SUPPORT
+#include "mach/sym827.h"
+extern int sym827_buck_set_voltage(unsigned long voltage);
+#endif
+
 /**************************************************
 * enable for DVFS random test
 ***************************************************/
@@ -131,7 +136,11 @@ static struct early_suspend mt_cpufreq_early_suspend_handler =
     #define DVFS_V3     (1050)  // mV /*Not used */
 #else /* Normal case */
     #define DVFS_V0     (1300)  // mV
+#ifdef CONFIG_ARCH_MT8127_TANK
+    #define DVFS_V1     (1200)  // mV
+#else
     #define DVFS_V1     (1250)  // mV
+#endif
     #ifdef CPUFREQ_SDIO_TRANSFER
     #define DVFS_V2_0   (1185)  // mV
     #endif
@@ -170,6 +179,9 @@ static struct early_suspend mt_cpufreq_early_suspend_handler =
 static int g_dvfs_disable_count = 0;
 
 static unsigned int g_cur_freq;
+#ifdef CONFIG_ARCH_MT8127_TANK
+static unsigned int g_saved_freq;
+#endif
 static unsigned int g_cur_cpufreq_volt;
 static unsigned int g_limited_max_ncpu;
 static unsigned int g_limited_max_freq;
@@ -209,7 +221,27 @@ static unsigned int mt_cpufreq_pmic_volt[8] = {0};
 static unsigned int mt_cpufreq_ptpod_test[8] = {0};
 #endif
 
+#ifdef CONFIG_MTK_PMIC_DUMMY
+static DEFINE_MUTEX(cpufreq_mutex);
+bool is_in_cpufreq = 0;
+#define cpufreq_lock(flags) \
+    do { \
+        /* to fix compile warning */  \
+        flags = (unsigned long)&flags; \
+        mutex_lock(&cpufreq_mutex); \
+        is_in_cpufreq = 1;\
+    } while (0)
+
+#define cpufreq_unlock(flags) \
+    do { \
+        /* to fix compile warning */  \
+        flags = (unsigned long)&flags; \
+        is_in_cpufreq = 0;\
+        mutex_unlock(&cpufreq_mutex); \
+    } while (0)
+#else
 static DEFINE_SPINLOCK(mt_cpufreq_lock);
+#endif
 
 #ifdef CPUFREQ_SDIO_TRANSFER
 static DEFINE_MUTEX(mt_cpufreq_mutex);
@@ -561,6 +593,10 @@ static unsigned int mt_cpufreq_volt_to_pmic_wrap(unsigned int target_volt)
 }
 #endif
 
+#ifdef CONFIG_MTK_SY8827_SUPPORT
+#define PMIC_VAL_TO_VOLT(pmic)  (((pmic) * 625) / 100 + 700)	/* (((pmic) * 625 + 100 - 1) / 100 + 700) */
+#endif
+
 /* Set voltage because PTP-OD modified voltage table by PMIC wrapper */
 unsigned int mt_cpufreq_voltage_set_by_ptpod(unsigned int pmic_volt[], unsigned int array_size)
 {
@@ -575,7 +611,11 @@ unsigned int mt_cpufreq_voltage_set_by_ptpod(unsigned int pmic_volt[], unsigned 
         dprintk("mt_cpufreq_voltage_set_by_ptpod: ERROR!array_size is invalide, array_size = %d\n", array_size);
     }
 	
+#ifdef CONFIG_MTK_PMIC_DUMMY
+	cpufreq_lock(flags);
+#else
     spin_lock_irqsave(&mt_cpufreq_lock, flags);
+#endif
 
     /* Update voltage setting by PTPOD request. */
     for (i = 0; i < array_size; i++)
@@ -587,6 +627,14 @@ unsigned int mt_cpufreq_voltage_set_by_ptpod(unsigned int pmic_volt[], unsigned 
     /* Need to sync PMIC_WRAP_DVFS_WDATA in mt_cpufreq_pdrv_probe() */
     if((g_cpufreq_get_ptp_level >= 0) && (g_cpufreq_get_ptp_level <= 4))
     {
+#ifdef CONFIG_MTK_SY8827_SUPPORT
+		mt_cpu_freqs[0].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[0]);
+		mt_cpu_freqs[1].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[1]);
+		mt_cpu_freqs[2].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[2]);
+		mt_cpu_freqs[3].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[2]);
+		mt_cpu_freqs[4].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[2]);
+#endif
+
         mt_cpufreq_reg_write(pmic_volt[2], PMIC_WRAP_DVFS_WDATA_array[5]);
         #ifndef MT_DVFS_LOW_VOLTAGE_SUPPORT
         mt_cpufreq_reg_write(pmic_volt[2], PMIC_WRAP_DVFS_WDATA_array[7]);
@@ -594,6 +642,13 @@ unsigned int mt_cpufreq_voltage_set_by_ptpod(unsigned int pmic_volt[], unsigned 
     }
     else if((g_cpufreq_get_ptp_level >= 5) && (g_cpufreq_get_ptp_level <= 6))  
     {
+#ifdef CONFIG_MTK_SY8827_SUPPORT
+		mt_cpu_freqs[0].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[0]);
+		mt_cpu_freqs[1].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[1]);
+		mt_cpu_freqs[2].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[1]);
+		mt_cpu_freqs[3].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[1]);
+#endif
+
         mt_cpufreq_reg_write(pmic_volt[1], PMIC_WRAP_DVFS_WDATA_array[5]);
         #ifndef MT_DVFS_LOW_VOLTAGE_SUPPORT
         mt_cpufreq_reg_write(pmic_volt[1], PMIC_WRAP_DVFS_WDATA_array[7]);
@@ -601,6 +656,14 @@ unsigned int mt_cpufreq_voltage_set_by_ptpod(unsigned int pmic_volt[], unsigned 
     }
     else
     {
+#ifdef CONFIG_MTK_SY8827_SUPPORT
+		mt_cpu_freqs[0].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[0]);
+		mt_cpu_freqs[1].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[1]);
+		mt_cpu_freqs[2].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[2]);
+		mt_cpu_freqs[3].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[2]);
+		mt_cpu_freqs[4].cpufreq_volt = PMIC_VAL_TO_VOLT(pmic_volt[2]);
+#endif
+
         mt_cpufreq_reg_write(pmic_volt[2], PMIC_WRAP_DVFS_WDATA_array[5]);
         #ifndef MT_DVFS_LOW_VOLTAGE_SUPPORT
         mt_cpufreq_reg_write(pmic_volt[2], PMIC_WRAP_DVFS_WDATA_array[7]);
@@ -640,7 +703,11 @@ unsigned int mt_cpufreq_voltage_set_by_ptpod(unsigned int pmic_volt[], unsigned 
 
     mt_cpufreq_volt_set(g_cur_cpufreq_volt);
 
+#ifdef CONFIG_MTK_PMIC_DUMMY
+	cpufreq_unlock(flags);
+#else
     spin_unlock_irqrestore(&mt_cpufreq_lock, flags);
+#endif
 	
     return 0;
 }
@@ -1025,6 +1092,9 @@ static void mt_cpu_clock_switch(unsigned int sel)
     }
 }
 
+#ifdef CONFIG_MTK_SY8827_SUPPORT
+#define SYM827_PRECISION	12500	/* uv */
+#endif
 /* Need sync with mt_cpufreq_volt_to_pmic_wrap(), mt_cpufreq_pdrv_probe() */
 static void mt_cpufreq_volt_set(unsigned int target_volt)
 {
@@ -1049,6 +1119,11 @@ static void mt_cpufreq_volt_set(unsigned int target_volt)
 		    break;
     }
 #else
+#ifdef CONFIG_MTK_SY8827_SUPPORT
+	sym827_buck_set_voltage(target_volt*1000 + SYM827_PRECISION - 1);
+	return;
+#endif
+
     if((g_cpufreq_get_ptp_level >= 0) && (g_cpufreq_get_ptp_level <= 4))
     {
         switch (target_volt)
@@ -1548,7 +1623,11 @@ static int mt_cpufreq_target(struct cpufreq_policy *policy, unsigned int target_
     cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
 #endif
 
+#ifdef CONFIG_MTK_PMIC_DUMMY
+	cpufreq_lock(flags);
+#else
     spin_lock_irqsave(&mt_cpufreq_lock, flags);
+#endif
 
     /******************************
     * set to the target freeuency
@@ -1561,7 +1640,11 @@ static int mt_cpufreq_target(struct cpufreq_policy *policy, unsigned int target_
     else
         dprintk("CPU frequency from %d MHz to %d MHz (skipped) due to same frequency in critical seciton check\n", freqs.old / 1000, freqs.new / 1000);
 
+#ifdef CONFIG_MTK_PMIC_DUMMY
+	cpufreq_unlock(flags);
+#else
     spin_unlock_irqrestore(&mt_cpufreq_lock, flags);
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
     for_each_online_cpu(cpu)
@@ -2084,8 +2167,20 @@ EXPORT_SYMBOL(mt_cpufreq_return_default_DVS_by_ptpod);
 *************************************************/
 void mt_cpufreq_enable_by_ptpod(void)
 {
+#ifdef CONFIG_ARCH_MT8127_TANK
+    struct cpufreq_policy *policy;
+
+    mt_cpufreq_ptpod_disable = false;
+    policy = cpufreq_cpu_get(0);
+
+    if (policy && g_saved_freq)
+        cpufreq_driver_target(policy, g_saved_freq, CPUFREQ_RELATION_L); /* revert back to original frequency */
+
+    xlog_printk(ANDROID_LOG_INFO, "Power/DVFS", "mt_cpufreq enabled by ptpod, set to %d\n", g_saved_freq);
+#else
     mt_cpufreq_ptpod_disable = false;
     xlog_printk(ANDROID_LOG_INFO, "Power/DVFS", "mt_cpufreq enabled by ptpod\n");
+#endif
 }
 EXPORT_SYMBOL(mt_cpufreq_enable_by_ptpod);
 
@@ -2103,6 +2198,9 @@ unsigned int mt_cpufreq_disable_by_ptpod(void)
     if (!policy)
         goto no_policy;
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+    g_saved_freq = g_cur_freq;
+#endif
     cpufreq_driver_target(policy, DVFS_F2, CPUFREQ_RELATION_L);
 
     xlog_printk(ANDROID_LOG_INFO, "Power/DVFS", "mt_cpufreq disabled by ptpod, limited freq. at %d\n", DVFS_F2);

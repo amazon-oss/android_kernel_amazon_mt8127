@@ -37,7 +37,11 @@ char default_command_line[COMMAND_LINE_SIZE] __initdata = CONFIG_CMDLINE;
 #endif
 
 #ifdef CONFIG_IDME
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define IDME_ATAG_SIZE  15360
+#else
 #define IDME_ATAG_SIZE  8736 
+#endif
 unsigned char system_idme[IDME_ATAG_SIZE+1];
 EXPORT_SYMBOL(system_idme);
 #endif
