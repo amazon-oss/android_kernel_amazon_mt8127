@@ -15,7 +15,11 @@
 /* You should define data structure used both in REE/TEE here
  */
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define CMDQ_MAX_BLOCK_SIZE     (8 * 1024)
+#else
 #define CMDQ_MAX_BLOCK_SIZE     (32 * 1024)
+#endif
 
 #define CMDQ_IWC_MAX_CMD_LENGTH (32 * 1024 / 4)
 
@@ -49,6 +53,12 @@ typedef struct {
 
 
 typedef struct {
+#ifdef CONFIG_MTK_HDMI_HDCP_SUPPORT
+	/* we need to copy srcBuffer HDCP version to dstBuffer */
+	uint32_t srcHandleForHDCP;	/* add for MDP HDCP version copy in CMDQ trustzone */
+	uint32_t dstHandleForHDCP;	/* add for MDP HDCP version copy in CMDQ trustzone */
+
+#endif
     uint32_t addrListLength; 
     uint32_t portListLength; 
     iwcCmdqAddrMetadata_t addrList[CMDQ_IWC_MAX_ADDR_LIST_LENGTH]; 
@@ -134,6 +144,9 @@ typedef enum CMDQ_ENG_SEC_ENUM
 #define CMDQ_ERR_ADDR_CONVERT_ALLOC_MVA   (1100)
 #define CMDQ_ERR_ADDR_CONVERT_FREE_MVA    (1200)
 #define CMDQ_ERR_PORT_CONFIG              (1300)
+#define CMDQ_ERR_HDCP_COPY_EXTRA_INFO_FAIL (1400)
+#define CMDQ_ERR_HDCP_GET_EXTRA_INFO_FAIL  (1401)
+#define CMDQ_ERR_HDCP_VERSION_NOT_SAME	   (1402)
 
 #define CMDQ_TZ_ERR_UNKNOWN_IWC_CMD       (5000)
 

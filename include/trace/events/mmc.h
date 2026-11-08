@@ -85,6 +85,57 @@ DEFINE_EVENT_CONDITION(mmc_blk_rw_class, mmc_blk_rw_end,
 	TP_CONDITION(((cmd == MMC_READ_MULTIPLE_BLOCK) ||
 		      (cmd == MMC_WRITE_MULTIPLE_BLOCK)) &&
 		      data));
+
+/*
+ * Unconditional logging of mmc block operations for all commands,
+ * including cmd, arg, flags
+ */
+DECLARE_EVENT_CLASS(mmc_all_cmd_class,
+	TP_PROTO(unsigned int cmd, unsigned int param1, unsigned int param2),
+	TP_ARGS(cmd, param1, param2),
+	TP_STRUCT__entry(
+		__field(unsigned int, cmd)
+		__field(unsigned int, param1)
+		__field(unsigned int, param2)
+	),
+	TP_fast_assign(
+		__entry->cmd = cmd;
+		__entry->param1 = param1;
+		__entry->param2 = param2;
+	),
+	TP_printk("cmd=%u,arg=0x%08x,flags=0x%08x",
+		  __entry->cmd, __entry->param1, __entry->param2)
+);
+
+DEFINE_EVENT(mmc_all_cmd_class, mmc_all_cmd,
+	TP_PROTO(unsigned int cmd, unsigned int param1, unsigned int param2),
+	TP_ARGS(cmd, param1, param2));
+
+/*
+ * Unconditional logging of mmc block operations for all response,
+ * including resp, address, param
+ */
+DECLARE_EVENT_CLASS(mmc_all_resp_class,
+	TP_PROTO(unsigned int resp, unsigned int param1, unsigned int param2),
+	TP_ARGS(resp, param1, param2),
+	TP_STRUCT__entry(
+		__field(unsigned int, resp)
+		__field(unsigned int, param1)
+		__field(unsigned int, param2)
+	),
+	TP_fast_assign(
+		__entry->resp = resp;
+		__entry->param1 = param1;
+		__entry->param2 = param2;
+	),
+	TP_printk("resp=%u,err=0x%08x,resp/arg=0x%08x",
+		  __entry->resp, __entry->param1, __entry->param2)
+);
+
+DEFINE_EVENT(mmc_all_resp_class, mmc_all_resp,
+	TP_PROTO(unsigned int resp, unsigned int param1, unsigned int param2),
+	TP_ARGS(resp, param1, param2));
+
 #endif /* _TRACE_MMC_H */
 
 /* This part must be outside protection */

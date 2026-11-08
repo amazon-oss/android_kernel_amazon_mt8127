@@ -33,6 +33,56 @@ typedef enum wk_req_mode {
 	WD_REQ_RST_MODE,
 } WD_REQ_MODE;
 
+/* used to store persist data in wdt, each one is one bit */
+typedef enum wd_persist_data {
+	WD_BOOTMODE_FASTBOOT,      /* 0 */
+	WD_BOOTMODE_RPMB_PROGRAM,  /* 1 */
+	WD_BOOTMODE_RECOVERY,      /* 2 */
+
+	/* Sign of Life flags, taken from life_cycle_reasons_mtk.c */
+
+	WD_SOL_WARM_BOOT_KERNEL_PANIC, /* 3 */
+	WD_SOL_WARM_BOOT_KERNEL_WDOG, 
+	WD_SOL_WARM_BOOT_HW_WDOG, 
+	WD_SOL_WARM_BOOT_SW, 
+	WD_SOL_COLD_BOOT_USB, 
+	WD_SOL_COLD_BOOT_POWER_KEY, 
+	WD_SOL_COLD_BOOT_POWER_SUPPLY, 
+
+	WD_SOL_SHUTDOWN_LONG_PWR_KEY_PRESS, /* 10 */
+	WD_SOL_SHUTDOWN_SW, 
+	WD_SOL_SHUTDOWN_PWR_KEY, 
+	WD_SOL_SHUTDOWN_SUDDEN_PWR_LOSS, 
+	WD_SOL_SHUTDOWN_UKNOWN, 
+
+	WD_SOL_THERMAL_SHUTDOWN_BATTERY, /* 15 */
+	WD_SOL_THERMAL_SHUTDOWN_PMIC, 
+	WD_SOL_THERMAL_SHUTDOWN_SOC, 
+	WD_SOL_THERMAL_SHUTDOWN_MODEM, 
+	WD_SOL_THERMAL_SHUTDOWN_WIFI, 
+	WD_SOL_THERMAL_SHUTDOWN_PCB, 
+
+	WD_SOL_SPECIAL_MODE_LOW_BATTERY, /* 21 */
+	WD_SOL_SPECIAL_MODE_WARM_BOOT_USB_CONNECTED, 
+	WD_SOL_SPECIAL_MODE_OTA, 
+	WD_SOL_SPECIAL_MODE_FACTORY_RESET, 
+
+} WD_PERSIST_DATA;
+
+#define WD_BOOTMODE_MASK           ((1<<WD_BOOTMODE_FASTBOOT) | (1<<WD_BOOTMODE_RPMB_PROGRAM) | (1<<WD_BOOTMODE_RECOVERY))
+#define WD_SOL_BOOT_REASON_MASK    ((1<<WD_SOL_WARM_BOOT_KERNEL_PANIC) | (1<<WD_SOL_WARM_BOOT_KERNEL_WDOG) | \
+									(1<<WD_SOL_WARM_BOOT_HW_WDOG) | (1<<WD_SOL_WARM_BOOT_SW) | \
+									(1<<WD_SOL_COLD_BOOT_USB) | (1<<WD_SOL_COLD_BOOT_POWER_KEY) | \
+									(1<<WD_SOL_COLD_BOOT_POWER_SUPPLY))
+#define WD_SOL_SHUTDOWN_MASK       ((1<<WD_SOL_SHUTDOWN_LONG_PWR_KEY_PRESS) | (1<<WD_SOL_SHUTDOWN_SW) | \
+									(1<<WD_SOL_SHUTDOWN_PWR_KEY) | (1<<WD_SOL_SHUTDOWN_SUDDEN_PWR_LOSS) | \
+									(1<<WD_SOL_SHUTDOWN_UKNOWN))
+#define WD_SOL_THERMAL_SHUTDOWN_MASK   ((1<<WD_SOL_THERMAL_SHUTDOWN_BATTERY) | (1<<WD_SOL_THERMAL_SHUTDOWN_PMIC) | \
+										(1<<WD_SOL_THERMAL_SHUTDOWN_SOC) | (1<<WD_SOL_THERMAL_SHUTDOWN_MODEM) | \
+										(1<<WD_SOL_THERMAL_SHUTDOWN_WIFI) | (1<<WD_SOL_THERMAL_SHUTDOWN_PCB))
+#define WD_SOL_SPECIAL_MODE_MASK   ((1<<WD_SOL_SPECIAL_MODE_LOW_BATTERY) | (1<<WD_SOL_SPECIAL_MODE_WARM_BOOT_USB_CONNECTED) | \
+									(1<<WD_SOL_SPECIAL_MODE_OTA) | (1<<WD_SOL_SPECIAL_MODE_FACTORY_RESET))
+
 struct wd_api {
 	long ready;
 	int (*wd_restart) (enum wd_restart_type type);
@@ -53,6 +103,9 @@ struct wd_api {
 	int (*wd_thermal_mode_config) (WD_REQ_CTL en, WD_REQ_MODE mode);
 	int (*wd_dram_reserved_mode) (bool enabled);
 	int (*wd_thermal_direct_mode_config) (WD_REQ_CTL en, WD_REQ_MODE mode);
+	int (*wd_set_persist_data) (int persistdata);
+	int (*wd_set_persist_data_bit) (WD_PERSIST_DATA persistdata);
+	int (*wd_get_persist_data) ();
 };
 
 int wd_api_init(void);

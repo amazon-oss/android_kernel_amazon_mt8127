@@ -298,6 +298,14 @@ struct musb_context_registers {
 	struct musb_csr_regs index_regs[MUSB_C_NUM_EPS];
 };
 
+#ifdef CONFIG_CMD_MODE_CHANGE
+enum usb_force_mode {
+	USB_FORCE_IDLE = 0,
+	USB_FORCE_HOST = 1,
+	USB_FORCE_DEVICE = 2,
+};
+#endif
+
 /*
  * struct musb - Driver instance data.
  */
@@ -452,6 +460,9 @@ struct musb {
 	bool is_ready:1;
 	bool usb_if;
 	u16 fifo_addr;
+#ifdef CONFIG_CMD_MODE_CHANGE
+	enum usb_force_mode force_mode; // 0:OTG mode 1:host mode 2:device mode 3:idle mode
+#endif
 };
 
 static inline struct musb *gadget_to_musb(struct usb_gadget *g)

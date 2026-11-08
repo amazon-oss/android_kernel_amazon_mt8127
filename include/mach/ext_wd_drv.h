@@ -19,6 +19,9 @@ void wdt_dump_reg(void);
 /* 0x10000000 for ddr reseved mode */
 /* 0x20000000 for 75 irq or reboot mode */
 int mtk_wdt_swsysret_config(int bit, int set_value);
+int mtk_wd_SetNonResetReg2(unsigned int value);
+int mtk_wd_SetNonResetReg2_bit(unsigned int offset, bool set);
+int mtk_wd_GetNonResetReg2();
 
 /* end */
 

@@ -91,6 +91,11 @@ typedef enum {
 	CHARGING_HOST,
 	NONSTANDARD_CHARGER,	/* AC : 450mA~1A */
 	STANDARD_CHARGER,	/* AC : ~1A */
+#ifdef CONFIG_ARCH_MT8127_TANK
+	APPLE_2_1A_CHARGER,	/* 2.1A apple charger */
+	APPLE_1_0A_CHARGER,	/* 1A apple charger */
+	APPLE_0_5A_CHARGER,	/* 0.5A apple charger */
+#endif
 	WIRELESS_CHARGER,
 } CHARGER_TYPE;
 
@@ -487,4 +492,5 @@ extern kal_int32 chr_control_interface_bq24296(CHARGING_CTRL_CMD cmd, void *data
 #ifdef CONFIG_MTK_SN2871_SUPPORT
 extern kal_int32 chr_control_interface_sn2871(CHARGING_CTRL_CMD cmd, void *data);
 #endif
+extern kal_int32 chr_control_interface(CHARGING_CTRL_CMD cmd, void *data);
 #endif				/* #ifndef _CHARGING_H */
