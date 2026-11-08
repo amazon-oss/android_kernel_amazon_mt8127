@@ -1,0 +1,6 @@
+config BCMDHD
+	tristate "Broadcom FullMAC wireless cards support"
+	depends on USB && CFG80211
+	---help---
+	  This module adds support for Broadcom FullMAC wireless chips
+	  attached over USB, such as the BCM43569.
