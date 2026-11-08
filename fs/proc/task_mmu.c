@@ -498,7 +498,7 @@ struct mem_size_stats {
 	unsigned long nonlinear;
 	u64 pss;
         u64 pswap;
-        u64 swap_pss;
+	u64 swap_pss;
 };
 
 #ifdef CONFIG_SWAP 
@@ -530,7 +530,7 @@ static void smaps_pte_entry(pte_t ptent, unsigned long addr,
 	                swp_entry_t entry;
 		        struct swap_info_struct *p;
 #ifndef CONFIG_TRANSPARENT_HUGEPAGE
-		        int mapcount;
+			int mapcount;
 #endif
 #endif // CONFIG_SWAP
 
