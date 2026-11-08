@@ -1,4 +1,5 @@
 #include "ddp_cmdq_sec.h"
+#include "cmdq_dma_pool.h"
 
 
 static atomic_t gDebugSecSwCopy = ATOMIC_INIT(0);
@@ -61,6 +62,8 @@ static int32_t cmdq_sec_setup_context_session(cmdqSecContextHandle handle)
 
 	// alloc message bufer
 	//handle->iwcMessage = kmalloc(sizeof(uint8_t*) * (sizeof(iwcCmdqMessage_t)), GFP_KERNEL);
+	if (NULL == handle->iwcMessage)
+		handle->iwcMessage = kmalloc(sizeof(iwcCmdqMessage_t), GFP_KERNEL);
 	if(NULL == handle->iwcMessage)
 	{
 		CMDQ_ERR("handle->iwcMessage kmalloc failed!\n");
@@ -137,6 +140,11 @@ static int32_t cmdq_sec_fill_iwc_buffer_unlocked(
             memcpy((pIwc->metadata.portList), (pTask->secData.portList), (pTask->secData.portListLength)*sizeof(iwcCmdqPortMetadata_t));
         }
 
+#ifdef CONFIG_MTK_HDMI_HDCP_SUPPORT
+		pIwc->metadata.srcHandleForHDCP = pTask->secData.srcHandleForHDCP;
+		pIwc->metadata.dstHandleForHDCP = pTask->secData.dstHandleForHDCP;
+
+#endif
         // medatada: debug config
         pIwc->metadata.debug.logLevel = (cmdq_core_should_print_msg()) ? (1) : (0);
     }
@@ -499,7 +507,11 @@ int32_t cmdq_sec_release_context_handle_unlocked(cmdqSecContextHandle handle)
 			kfree(handle->iwcMessage);
 			handle->iwcMessage = NULL;
 		}
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+		cmdq_free_dma_pool(handle);
+#else
 		kfree(handle);
+#endif
 		handle = NULL;
     }while(0);
     return status;
@@ -533,7 +545,11 @@ int32_t cmdq_sec_release_context_handle(uint32_t tgid)
 cmdqSecContextHandle cmdq_sec_context_handle_create(uint32_t tgid)
 {
     cmdqSecContextHandle handle = NULL;
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+	handle = cmdq_alloc_dma_pool(sizeof(cmdqSecContextStruct), NULL);
+#else
     handle = kmalloc(sizeof(cmdqSecContextStruct), GFP_ATOMIC);
+#endif
     if (handle)
     {
 		handle->iwcMessage = kmalloc(sizeof(iwcCmdqMessage_t), GFP_KERNEL);

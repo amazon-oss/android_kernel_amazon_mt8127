@@ -20,10 +20,22 @@ void arch_reset(char mode, const char *cmd)
 		/* do nothing */
 	} else if (cmd && !strcmp(cmd, "recovery")) {
 		rtc_mark_recovery();
+#ifdef CONFIG_MTK_PMIC_DUMMY
+		if (!res)
+			wd_api->wd_set_persist_data_bit(WD_BOOTMODE_RECOVERY);
+#endif
 	} else if (cmd && !strcmp(cmd, "bootloader")) {
 		rtc_mark_fast();
+#ifdef CONFIG_MTK_PMIC_DUMMY
+		if (!res)
+			wd_api->wd_set_persist_data_bit(WD_BOOTMODE_FASTBOOT);
+#endif
 	} else if (cmd && !strcmp(cmd, "rpmbp")) {
 		rtc_mark_rpmbp();
+#ifdef CONFIG_MTK_PMIC_DUMMY
+		if (!res)
+			wd_api->wd_set_persist_data_bit(WD_BOOTMODE_RPMB_PROGRAM);
+#endif
 	}
 #ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
 	else if (cmd && !strcmp(cmd, "kpoc")) {

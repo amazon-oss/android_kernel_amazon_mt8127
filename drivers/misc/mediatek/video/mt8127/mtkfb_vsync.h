@@ -11,6 +11,13 @@ typedef enum {
 	MTKFB_VSYNC_SOURCE_HDMI = 1,
 } vsync_src;
 
+#ifdef CONFIG_MTK_AOSP_TVSTICK_SUPPORT
+typedef struct vsync_config {
+	unsigned long long vsync_ticks;
+}vsync_config_t;
+#define MTKFB_VSYNC_IOCTL     _IOWR(MTKFB_VSYNC_IOCTL_MAGIC, 1, vsync_config_t)
+#else
 #define MTKFB_VSYNC_IOCTL     _IOW(MTKFB_VSYNC_IOCTL_MAGIC, 1, vsync_src)
+#endif
 
 #endif //MTKFB_VSYNC_H

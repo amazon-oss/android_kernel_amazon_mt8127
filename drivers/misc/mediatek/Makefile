@@ -1,3 +1,16 @@
+#
+# Copyright (C) 2015 MediaTek Inc.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 2 as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+
 #$(call all-subdir-src-or-makefile)
 
 include $(srctree)/drivers/misc/mediatek/Makefile.custom
@@ -157,8 +170,10 @@ obj-$(CONFIG_ZRAM)	+= mlog/
 obj-$(CONFIG_MTK_CAM_CAL_GT24C32A_SUPPORT)	+= cam_cal/GT24c32a_eeprom/
 obj-$(CONFIG_MTK_CAM_CAL_BRCC064GWZ_3_SUPPORT) += cam_cal/BRCC064GWZ_3_eeprom/
 obj-$(CONFIG_MTK_CAM_CAL_BRCB032GWZ_3_SUPPORT) += cam_cal/BRCB032GWZ_3_eeprom/
+ifneq ($(CONFIG_ARCH_MT8127_TANK),y)
 obj-y	+= lens/
 obj-y	+= imgsensor/src/
+endif
 
 #exclude mt6735
 ifeq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6735"))
@@ -175,7 +190,7 @@ obj-y	+= chip/
 obj-y	+= gpio/
 obj-y	+= eint/
 obj-y	+= uart/
-obj-y	+= pmic_wrap/
+obj-$(CONFIG_MTK_PMIC_WRAP)   +=  pmic_wrap/
 
 ifeq ($(CONFIG_MTK_HDMI_SUPPORT),y)
 obj-y	+= hdmi/
@@ -283,4 +298,6 @@ endif           # end of CONFIG_ARCH_MT6735
 endif		# end of CONFIG_ARCH_MT6795
 
 obj-y += dynamic_boost/
+ifneq ($(CONFIG_ARCH_MT8127_TANK),y)
 obj-y += hwinfo/
+endif

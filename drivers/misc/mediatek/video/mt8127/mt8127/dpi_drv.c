@@ -678,6 +678,7 @@ DPI_STATUS DPI_PowerOff()
 
 #if 1
         _BackupDPIRegisters();
+        #if !MTK_DISP_DIRECTLINK
         if(lcm_params->dpi.lvds_tx_en == 1)
         {
          ret += disable_clock(MT_CG_DISP1_LVDS_PIXEL_CLOCK, "DPI0");
@@ -687,6 +688,7 @@ DPI_STATUS DPI_PowerOff()
         {
 	       disable_mux(MT_MUX_DPI0,"DPI0");	
 		}
+		#endif
 
         ret += disable_clock(MT_CG_DISP1_DPI_DIGITAL_LANE, "DPI0");
 	 ret += disable_clock(MT_CG_DISP1_DPI_ENGINE, "DPI0");

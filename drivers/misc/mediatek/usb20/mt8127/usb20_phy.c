@@ -149,6 +149,9 @@ static bool in_uart_mode = false;
 
 static DEFINE_SPINLOCK(musb_reg_clock_lock);
 static DEFINE_SPINLOCK(musb_phy_clock_lock);
+#ifdef CONFIG_MTK_USBFSH
+static DEFINE_SPINLOCK(musb_peri_usb_clock_lock);
+#endif
 
 
 void enable_phy_clock(bool enable)
@@ -175,12 +178,56 @@ void enable_phy_clock(bool enable)
 	spin_unlock_irqrestore(&musb_phy_clock_lock, flags);
 }
 
+#ifdef CONFIG_MTK_USBFSH
+void enable_peri_usb_clock(bool enable)
+{
+	static int count;
+	unsigned long flags;
+
+	spin_lock_irqsave(&musb_peri_usb_clock_lock, flags);
+
+	if (enable) {
+		if (0 == count) {
+			printk("enable peri usb0 clock\n");
+			enable_clock(MT_CG_PERI_USB0, "PERI_USB");
+		}
+		count++;
+	} else {
+		if (1 == count) {
+			printk("disable peri usb0 clock\n");
+			disable_clock(MT_CG_PERI_USB0, "PERI_USB");
+		}
+		count = (count == 0) ? 0 : (count - 1);
+	}
+	spin_unlock_irqrestore(&musb_peri_usb_clock_lock, flags);
+}
+#endif
+
 bool usb_enable_clock(bool enable)
 {
 	bool res = TRUE;
 	unsigned long flags;
+#ifdef CONFIG_MTK_USBFSH
+	static int count;
+#endif
 
 	spin_lock_irqsave(&musb_reg_clock_lock, flags);
+#ifdef CONFIG_MTK_USBFSH
+	if (enable) {
+		if (0 == count) {
+			enable_phy_clock(true);
+			enable_peri_usb_clock(true);
+		}
+		count++;
+	}
+	else {
+		if (1 == count) {
+			enable_peri_usb_clock(false);
+			enable_phy_clock(false);
+		}
+		count = (count == 0) ? 0 : (count - 1);
+	}
+#else
 	if (enable) {
 		enable_phy_clock(true);
 		res = enable_clock(MT_CG_PERI_USB0, "PERI_USB");
@@ -189,6 +236,7 @@ bool usb_enable_clock(bool enable)
 		res = disable_clock(MT_CG_PERI_USB0, "PERI_USB");
         enable_phy_clock(false);
 	}
+#endif
 
 	spin_unlock_irqrestore(&musb_reg_clock_lock, flags);
 
@@ -353,6 +401,13 @@ void usb_phy_poweron(void){
     USBPHY_CLR8(0x6c, 0x10);
     USBPHY_SET8(0x6c, 0x2E);
     USBPHY_SET8(0x6d, 0x3E);
+
+#ifdef CONFIG_ARCH_MT8127_TANK
+    /* adjust VRT_VREF_SEL to 800mv, adjust TERM_VREF_SEL to 460mv */
+    printk("usb phy poweron read default eye value. Addr: 0x5=0x%x\n", USBPHY_READ8(0x05));
+    USBPHY_SET8(0x05, 0x47);
+    printk("usb phy poweron read eye value after update. Addr: 0x5=0x%x\n", USBPHY_READ8(0x05));
+#endif
 
     printk("usb power on success\n");
 }
@@ -528,6 +583,18 @@ void usb_phy_recover(void){
 		USBPHY_SET8(0x05, ((get_devinfo_with_index(14)>>19)<<4)&0x70);
 		printk("USB HW reg: overwrite RG_USB20_VRT_VREF_SEL 0x%x\n", USBPHY_READ8(0x05));
 	}
+
+#ifdef CONFIG_ARCH_MT8127_TANK
+    /* adjust VRT_VREF_SEL to 800mv, adjust TERM_VREF_SEL to 460mv */
+    printk("usb phy recovery read default eye value. Addr: 0x5=0x%x\n", USBPHY_READ8(0x05));
+    USBPHY_SET8(0x05, 0x47);
+    printk("usb phy recovery read eye value after update. Addr: 0x5=0x%x\n", USBPHY_READ8(0x05));
+
+    printk("usb phy recovery read default rx sensitivity value. Addr: 0x18=0x%x\n", USBPHY_READ8(0x18));
+    USBPHY_CLR8(0x18, 0x0f);
+    USBPHY_SET8(0x18, 0x84);
+    printk("usb phy recovery read rx sensitivity value after update. Addr: 0x18=0x%x\n", USBPHY_READ8(0x18));
+#endif
 
     printk("usb recovery success\n");
     return;

@@ -8,7 +8,7 @@ typedef enum
  CEC_NORMAL_MODE=0,
  CEC_CTS_MODE,
  CEC_SLT_MODE
-	
+
 }HDMI_CEC_RX_MODE;
 
 typedef enum
@@ -48,12 +48,13 @@ typedef enum
 	ERR_RX_LOST_HEADER = 0x0400
 } CEC_ERR_STATUS;
 
-typedef struct 
+/*
+typedef struct
 {
 	unsigned int	cmd;
 	unsigned int	result;
 }	CEC_USR_CMD_T;
-
+*/
 typedef enum
 {
 	OPCODE_FEATURE_ABORT = 0x00,				// 4
@@ -206,7 +207,7 @@ typedef enum
 	#define RX_EN Fld(1, 8, AC_MSKB1) //8
 	#define CEC_ID_EN Fld(1, 1, AC_MSKB0) //1
 	#define CEC_EN Fld(1, 0, AC_MSKB0) //0
-	
+
 #define CEC_CKGEN 0x04
 
     #define CEC_32K_PDN Fld(1, 19, AC_MSKB2) //16
@@ -215,7 +216,7 @@ typedef enum
 
 	#define PDN Fld(1, 16, AC_MSKB2) //16
 	#define DIV_SEL Fld(16, 0, AC_FULLW10) //15:0
-	
+
 #define RX_T_START_R 0x08
 
 	#define RX_TIMER_START_R_MAX Fld(11, 16, AC_MSKW32) //26:16
@@ -456,20 +457,20 @@ typedef struct
 	CEC_FRAME_BLOCK blocks;
 } CEC_FRAME_DESCRIPTION;
 
-typedef struct 
+typedef struct
 {
 	unsigned char		ui1_la;
 	unsigned short	   ui2_pa;
 }	CEC_ADDRESS;
 
-typedef struct 
+typedef struct
 {
 	unsigned char	ui1_num;
 	unsigned char	aui1_la[3];
 	unsigned short	ui2_pa;
 }	CEC_LA_ADDRESS;
 
-typedef struct 
+typedef struct
 {
 	unsigned char	u1Size;
 	unsigned char	au1Data[14];
@@ -564,7 +565,7 @@ extern unsigned int IS_HDMI_HTPLG(void);
 extern unsigned int IS_HDMI_PORD(void);
 extern void vClear_cec_irq(void);
 extern void vEnable_hotplug_pord_int(unsigned char u1enable);
-extern void vCec_pdn_32k(void); 
+extern void vCec_pdn_32k(void);
 extern void hdmi_cec_api_get_txsts(CEC_ACK_INFO_T *pt);
 extern void hdmi_cec_api_get_cmd(CEC_FRAME_DESCRIPTION* frame);
 extern void hdmi_cec_usr_cmd(unsigned int cmd, unsigned int* result);

@@ -23,6 +23,9 @@
 
 #include <linux/thermal.h>
 #include <linux/module.h>
+#ifdef CONFIG_ARCH_MT8127_TANK
+#include <linux/platform_data/mtk_thermal.h>
+#endif
 #include "thermal_core.h"
 
 /**
@@ -37,9 +40,18 @@ static int trip_step_wise_throttle(struct thermal_zone_device *tz, int trip)
 	struct thermal_instance *tz_instance, *cd_instance;
 	struct thermal_cooling_device *cdev;
 	unsigned long target = 0;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	char data[4][32];
+	char *envp[] = { data[0], data[1], data[2], data[3], NULL };
+#else
 	char data[32];
 	char *envp[] = { data, NULL };
+#endif
 	unsigned long cur_state, max_state;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	struct mtk_cooler_platform_data *pdata;
+	int cdev_level;
+#endif
 
 	mutex_lock(&tz->lock);
 	list_for_each_entry(tz_instance, &tz->thermal_instances, tz_node) {
@@ -47,6 +59,9 @@ static int trip_step_wise_throttle(struct thermal_zone_device *tz, int trip)
 			continue;
 
 		cdev = tz_instance->cdev;
+		if (!cdev)
+			continue;
+
 		mutex_lock(&cdev->lock);
 
 		list_for_each_entry(cd_instance, &cdev->thermal_instances, cdev_node) {
@@ -82,6 +97,23 @@ static int trip_step_wise_throttle(struct thermal_zone_device *tz, int trip)
 		mutex_unlock(&cdev->lock);
 
 		if (cur_state != target) {
+#ifdef CONFIG_ARCH_MT8127_TANK
+			thermal_cdev_update(cdev);
+			pr_info("thermal device %s state change, cur %ld target %ld, id=%d\n",
+				 tz->type, cur_state, target, tz->id);
+			cdev->ops->get_cur_state(cdev, &cur_state);
+
+			pdata = cdev->devdata;
+			cdev_level = -1;
+			if (pdata->levels) {
+				cdev_level = pdata->levels[cur_state];
+			}
+
+			snprintf(data[0], sizeof(data[0]), "THERMAL_STATE=%ld", cur_state);
+			snprintf(data[1], sizeof(data[1]), "ID=%d", tz->id);
+			snprintf(data[2], sizeof(data[2]), "CDTYPE=%s", cdev->type);
+			snprintf(data[3], sizeof(data[3]), "CDLEV=%d", cdev_level);
+#else
 			pr_info("before updating cdev: thermal device %s state change, cur %ld target %ld\n",
 				 tz->type, cur_state, target);
 			thermal_cdev_update(cdev);
@@ -90,6 +122,7 @@ static int trip_step_wise_throttle(struct thermal_zone_device *tz, int trip)
 				 tz->type, cur_state, target);
 
 			snprintf(data, sizeof(data), "THERMAL_STATE=%ld", target);
+#endif
 			kobject_uevent_env(&tz->device.kobj, KOBJ_CHANGE, envp);
 		}
 	}

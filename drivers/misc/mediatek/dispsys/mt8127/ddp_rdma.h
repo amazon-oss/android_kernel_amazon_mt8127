@@ -16,7 +16,7 @@ enum RDMA_INPUT_FORMAT {
     RDMA_INPUT_FORMAT_RGB565 = 4,
     RDMA_INPUT_FORMAT_RGB888 = 8,
     RDMA_INPUT_FORMAT_ARGB   = 16,
-
+    RDMA_INPUT_FORMAT_BGRA   = 17,
     RDMA_INPUT_FORMAT_BGR565 = RDMA_INPUT_FORMAT_RGB565 + RDMA_COLOR_BASE,
     RDMA_INPUT_FORMAT_BGR888 = RDMA_INPUT_FORMAT_RGB888 + RDMA_COLOR_BASE,
     RDMA_INPUT_FORMAT_ABGR   = RDMA_INPUT_FORMAT_ARGB + RDMA_COLOR_BASE,
@@ -33,6 +33,7 @@ int RDMAStop(unsigned idx);
 
 // reset module
 int RDMAReset(unsigned idx);
+int RDMALimit(unsigned idx);
 
 /* porting from abc123; disable module */
 int RDMADisable(unsigned idx);
@@ -40,23 +41,23 @@ int RDMADisable(unsigned idx);
 // configu module
 int RDMAConfig(unsigned idx,
                     enum RDMA_MODE mode,
-                    DpColorFormat inFormat, 
-                    unsigned address, 
-                    enum RDMA_OUTPUT_FORMAT outputFormat, 
+                    DpColorFormat inFormat,
+                    unsigned address,
+                    enum RDMA_OUTPUT_FORMAT outputFormat,
                     unsigned pitch,
-                    unsigned width, 
-                    unsigned height, 
+                    unsigned width,
+                    unsigned height,
                     bool isByteSwap, // input setting
                     bool isRGBSwap); // ourput setting
 #ifdef MTK_SEC_VIDEO_PATH_SUPPORT
 int RDMAConfig_(unsigned idx,
                     enum RDMA_MODE mode,
-                    DpColorFormat inFormat, 
-                    unsigned address, 
-                    enum RDMA_OUTPUT_FORMAT outputFormat, 
+                    DpColorFormat inFormat,
+                    unsigned address,
+                    enum RDMA_OUTPUT_FORMAT outputFormat,
                     unsigned pitch,
-                    unsigned width, 
-                    unsigned height, 
+                    unsigned width,
+                    unsigned height,
                     bool isByteSwap, // input setting
                     bool isRGBSwap,  // ourput setting
                     unsigned int RDMASecurity);
@@ -68,7 +69,6 @@ void RDMASetTargetLine(unsigned int idx, unsigned int line);
 void RDMASetOutputFrameSize(unsigned int idx, unsigned int width,unsigned int height);
 
 enum RDMA_INPUT_FORMAT rdma_fmt_convert(DpColorFormat fmt);
-
 //---------------------------------------------------------------------------------------
 #define INT_ENABLE_FLD_FIFO_UNDERFLOW_INT_EN                   REG_FLD(1, 4)
 #define INT_ENABLE_FLD_EOF_ABNORMAL_INT_EN                     REG_FLD(1, 3)

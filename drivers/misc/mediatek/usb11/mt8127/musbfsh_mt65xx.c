@@ -335,7 +335,9 @@ void mt65xx_usb11_clock_enable(bool enable)
         if(clock_enabled)//already enable
             return;
         else{
-                enable_clock(MT_CG_PERI_USB0, "PERI_USB");  //mt8127 PERI_USB1 dependence PERI_USB0
+				INFO("enable mt65xx_usb11_clock_enable clock\n");
+				enable_phy_clock(enable);
+                enable_peri_usb_clock(enable);  //mt8127 PERI_USB1 dependence PERI_USB0
                 enable_clock (MT_CG_PERI_USB1, "USB11");
                 clock_enabled = true;
             }
@@ -344,8 +346,10 @@ void mt65xx_usb11_clock_enable(bool enable)
         if(!clock_enabled)//already disabled.
             return;
         else{
+				INFO("disable enable mt65xx_usb11_clock_enable clock\n");
                 disable_clock (MT_CG_PERI_USB1, "USB11");
-                disable_clock (MT_CG_PERI_USB0, "PERI_USB");   //mt8127 PERI_USB1 dependence PERI_USB0
+                enable_peri_usb_clock (enable);   //mt8127 PERI_USB1 dependence PERI_USB0
+                enable_phy_clock(enable);
                 clock_enabled = false;
             }
         }

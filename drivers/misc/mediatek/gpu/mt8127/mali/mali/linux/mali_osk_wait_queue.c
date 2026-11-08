@@ -44,7 +44,11 @@ void _mali_osk_wait_queue_wait_event( _mali_osk_wait_queue_t *queue, mali_bool (
 {
 	MALI_DEBUG_ASSERT_POINTER( queue );
 	MALI_DEBUG_PRINT(6, ("Adding to wait queue %p\n", queue));
+#ifdef CONFIG_ARCH_MT8127_TANK
+	wait_event(queue->wait_queue, condition(data));
+#else
 	wait_event_interruptible(queue->wait_queue, condition(data));
+#endif
 }
 
 void _mali_osk_wait_queue_wait_event_timeout( _mali_osk_wait_queue_t *queue, mali_bool (*condition)(void *), void *data, u32 timeout )

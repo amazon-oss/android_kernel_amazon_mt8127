@@ -1308,8 +1308,8 @@ static int m4u_dump_rs_info(int m4u_index)
     int i;
     unsigned int va[MMU_TOTAL_RS_NR], pa[MMU_TOTAL_RS_NR], st[MMU_TOTAL_RS_NR];
 
-    if (m4u_index < 0 && m4u_index > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_index);
+    if (m4u_index < 0 && m4u_index >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_index);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_index];
@@ -1336,8 +1336,8 @@ static irqreturn_t MTK_M4U_isr(int irq, void *dev_id)
     unsigned int rs_va[MMU_TOTAL_RS_NR], rs_pa[MMU_TOTAL_RS_NR], rs_st[MMU_TOTAL_RS_NR];
 
     m4u_index = irq-MT6589_MMU0_IRQ_ID;
-    if (m4u_index < 0 && m4u_index > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_index);
+    if (m4u_index < 0 && m4u_index >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_index);
         return IRQ_NONE;
     }
     m4u_base = gM4UBaseAddr[m4u_index];
@@ -1641,8 +1641,8 @@ static int m4u_confirm_range_invalidated(int m4u_index, unsigned int MVAStart, u
     unsigned int m4u_base;
     int result = 0;
 
-    if (m4u_index < 0 && m4u_index > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_index);
+    if (m4u_index < 0 && m4u_index >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_index);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_index];
@@ -1760,8 +1760,8 @@ static int m4u_search_main_invalid(int m4u_id)
     unsigned int m4u_base;
     unsigned int mva;// des;
 
-    if (m4u_id < 0 && m4u_id > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_id);
+    if (m4u_id < 0 && m4u_id >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_id);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_id];
@@ -1787,8 +1787,8 @@ static int m4u_dump_main_tlb_des(int m4u_id)
     unsigned int i=0;
     unsigned int m4u_base;
 
-    if (m4u_id < 0 && m4u_id > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_id);
+    if (m4u_id < 0 && m4u_id >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_id);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_id];
@@ -1812,8 +1812,8 @@ static int m4u_dump_main_tlb_tags(int m4u_id)
     // M4U related
     unsigned int i=0;
     unsigned int m4u_base;
-    if (m4u_id < 0 && m4u_id > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_id);
+    if (m4u_id < 0 && m4u_id >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_id);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_id];
@@ -1834,8 +1834,8 @@ static int m4u_dump_pfh_tlb_tags(int m4u_id)
 {
     unsigned int i=0;
     unsigned int m4u_base;
-    if (m4u_id < 0 && m4u_id > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_id);
+    if (m4u_id < 0 && m4u_id >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_id);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_id];
@@ -1857,8 +1857,8 @@ static int m4u_dump_pfh_tlb_des(int m4u_id)
     // M4U related
     unsigned int i=0;
     unsigned int m4u_base;
-    if (m4u_id < 0 && m4u_id > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_id);
+    if (m4u_id < 0 && m4u_id >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_id);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_id];
@@ -3037,8 +3037,8 @@ int m4u_invalid_seq_range_by_mva(int m4u_index, unsigned int MVAStart, unsigned 
     unsigned int m4u_index_offset = SEQ_RANGE_NUM*m4u_index;
     int ret=-1;
 
-    if (m4u_index < 0 && m4u_index > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_index);
+    if (m4u_index < 0 && m4u_index >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_index);
         return ret;
     }
     m4u_base = gM4UBaseAddr[m4u_index];
@@ -3394,8 +3394,8 @@ int m4u_do_sync_nonsec_sec_pgtable(unsigned int mva,
 static void m4u_get_perf_counter(int m4u_index, M4U_PERF_COUNT *pM4U_perf_count)
 {
     unsigned int m4u_base;
-    if (m4u_index < 0 && m4u_index > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_index);
+    if (m4u_index < 0 && m4u_index >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_index);
         return;
     }
     m4u_base = gM4UBaseAddr[m4u_index];
@@ -3411,8 +3411,8 @@ int m4u_do_monitor_start(int m4u_id)
 {
     unsigned int m4u_base;
 
-    if (m4u_id < 0 && m4u_id > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_id);
+    if (m4u_id < 0 && m4u_id >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_id);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_id];
@@ -3441,8 +3441,8 @@ int m4u_do_monitor_stop(int m4u_id)
     M4U_PERF_COUNT cnt;
     unsigned int m4u_base;
 
-    if (m4u_id < 0 && m4u_id > TOTAL_M4U_NUM) {
-        M4UMSG("error m4u id, error id is %d\n", m4u_id);
+    if (m4u_id < 0 && m4u_id >= TOTAL_M4U_NUM) {
+        M4UERR("error m4u id, error id is %d\n", m4u_id);
         return -1;
     }
     m4u_base = gM4UBaseAddr[m4u_id];

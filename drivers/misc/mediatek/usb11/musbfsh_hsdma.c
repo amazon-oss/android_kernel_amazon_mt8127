@@ -101,7 +101,7 @@ static struct dma_channel *dma_channel_allocate(struct dma_controller *c,
 			channel = &(musbfsh_channel->channel);
 			channel->private_data = musbfsh_channel;
 			channel->status = MUSBFSH_DMA_STATUS_FREE;
-			channel->max_len = 0x10000;
+			channel->max_len = 0xffffff;
 			/* Tx => mode 1; Rx => mode 0 */
 			channel->desired_mode = transmit;
 			//channel->desired_mode = 0; //wz:set Tx and Rx to mode 0

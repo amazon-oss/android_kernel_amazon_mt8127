@@ -6,17 +6,26 @@ obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 
 obj-$(CONFIG_THERMAL) += mtk_cpufreq_cooling.o
 obj-$(CONFIG_THERMAL) += mtk_hotplug_cooling.o
+ifeq ($(CONFIG_ARCH_MT8127_TANK),y)
+obj-$(CONFIG_THERMAL) += mtk_wifi_cooling.o
+obj-$(CONFIG_THERMAL) += mtk_vsync_cooling.o
+else
 obj-$(CONFIG_THERMAL) += mtk_backlight_cooling.o
 obj-$(CONFIG_THERMAL) += mtk_charger_cooling.o
+endif
 obj-$(CONFIG_THERMAL) += mtk_ts_cpu.o
 obj-$(CONFIG_THERMAL) += mtk_ts_abb.o
+ifneq ($(CONFIG_ARCH_MT8127_TANK),y)
 obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
+endif
 obj-$(CONFIG_THERMAL) += mtk_ts_bts.o
 
+ifeq ($(CONFIG_MTK_PMIC_DUMMY),)
 ifeq ($(CONFIG_MTK_PMIC_MT6397),y)
     obj-$(CONFIG_THERMAL) += mtk_ts_pmic6397.o
 else
     obj-$(CONFIG_THERMAL) += mtk_ts_pmic6323.o
+endif
 endif
 
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)

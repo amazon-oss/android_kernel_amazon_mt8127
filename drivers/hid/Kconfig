@@ -90,6 +90,13 @@ config HID_GENERIC
 menu "Special HID drivers"
 	depends on HID
 
+config HID_FTV_BLEREMOTE
+        tristate "Amazon FTV BLE Remote"
+        depends on HID
+        default HID
+        ---help---
+        This cusom driver handle vendor specific commands
+
 config HID_A4TECH
 	tristate "A4 tech mice" if EXPERT
 	depends on HID
@@ -121,6 +128,16 @@ config HID_AMAZON_ASPEN
 
 	Say Y here if you want to enable support for Amazon Aspen KB/TrackPad
 
+config HID_AMAZON_GP
+        tristate "Amazon.com game controller support"
+        depends on USB_HID
+        default y
+        ---help---
+        Support for Amazon.com game controllers with modifications to the HID
+        specification.
+
+        Say Y here if you want to enable support for Amazon.com game controllers
+        such as abc123.
 
 config HID_APPLE
 	tristate "Apple {i,Power,Mac}Books" if EXPERT

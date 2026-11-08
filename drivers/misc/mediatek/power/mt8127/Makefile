@@ -2,17 +2,21 @@ include $(srctree)/drivers/misc/mediatek/Makefile.custom
 
 ccflags-y += -I$(srctree)/drivers/power/mediatek/$(CONFIG_MTK_PLATFORM)/$(ARCH_MTK_PROJECT)
 
-ifeq ($(CONFIG_MTK_PMIC_MT6397),y)
-  ccflags-y += -DMTK_PMIC_MT6397
-  ifeq ($(MTK_ALPS_BOX_SUPPORT), yes)
-    ccflags-y += -DMTK_ALPS_BOX_SUPPORT
-    obj-$(CONFIG_MTK_PMIC) += pmic_mt6397_dummy.o upmu_common.o 
-  else
-	  obj-$(CONFIG_MTK_PMIC_MT6397) += pmic_mt6397.o upmu_common_mt6397.o pmic_chr_type_det.o
-	endif
+ifeq ($(CONFIG_MTK_PMIC_DUMMY),y)
+    obj-$(CONFIG_MTK_PMIC_DUMMY) += pmic_dummy.o
 else
-	obj-$(CONFIG_MTK_PMIC) += pmic_mt6323.o upmu_common_mt6323.o  pmic_chr_type_det.o
+	ifeq ($(CONFIG_MTK_PMIC_MT6397),y)
+		ccflags-y += -DMTK_PMIC_MT6397
+		obj-$(CONFIG_MTK_PMIC_MT6397) += pmic_mt6397.o upmu_common_mt6397.o pmic_chr_type_det.o
+	else
+		obj-$(CONFIG_MTK_PMIC) += pmic_mt6323.o upmu_common_mt6323.o  pmic_chr_type_det.o
+	endif
 endif
+
+ifeq ($(CONFIG_MTK_SY8827_SUPPORT),y)
+	obj-$(CONFIG_MTK_SY8827_SUPPORT) += sym827.o
+endif
+
 ifeq ($(CONFIG_MTK_MT6333_SUPPORT),y)
     obj-$(CONFIG_MTK_MT6333_SUPPORT) += mt6333.o
 endif

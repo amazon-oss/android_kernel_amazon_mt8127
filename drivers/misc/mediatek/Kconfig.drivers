@@ -827,6 +827,12 @@ config MTK_PMIC_MT6397
 	---help---
 	  MediaTek PMIC MT6397
 
+config MTK_PMIC_DUMMY
+	bool "MediaTek PMIC DUMMY"
+	default n
+	---help---
+	  MediaTek PMIC DUMMY
+
 config POWER_EXT
 	tristate "MediaTek Power Ext"
 	default y
@@ -939,6 +945,12 @@ config MTK_MAX8971_SUPPORT
 	help
 	  Say Y to include support for MAXIM 8971 Battery Charger
 	  Battery Charger.
+
+config MTK_SY8827_SUPPORT
+	bool "MTK_SY8827_SUPPORT"
+	default n
+	help
+	  Support SY8827 external power regulator
 
 endif #POWER_SUPPLY
 
@@ -1459,6 +1471,14 @@ config MTK_USBFSH # USBFSH
 	bool "MediaTek USB fullspeed Host driver"
 	default n
 
+config CMD_MODE_CHANGE
+	bool "MediaTek USB mode switch support"
+	default n
+
+config GPIO_USB_DEFAULT_DEVICE_MODE
+	bool "USB defaults to device mode"
+	default n
+
 config MUSBFSH_PIO_ONLY
 	bool "Transfer mode of MediaTek USB fullspeed Host driver"
 	default n
@@ -1618,6 +1638,11 @@ config MTK_HDMI_SUPPORT
 	  To control whether enable or disable HDMI feature. If choose yes,
 	  phone's screen can be demonstrated on TV via HDMI cable.
 
+config MTK_AOSP_TVSTICK_SUPPORT
+	bool "MTK_AOSP_TVSTICK_SUPPORT"
+	help
+	  To control TV stick output only from HDMI and without main display.
+
 config MTK_MT8193_HDMI_SUPPORT
 	bool "MTK_MT8193_HDMI_SUPPORT"
 	depends on MTK_HDMI_SUPPORT
@@ -1636,6 +1661,12 @@ config CUSTOM_KERNEL_HDMI
 	string "CUSTOM_KERNEL_HDMI"
 	help
 	  Specify HDMI external IC type.
+
+config MTK_HDMI_HDCP_SUPPORT
+	bool "MTK_HDMI_HDCP_SUPPORT"
+	depends on MTK_HDMI_SUPPORT
+	help
+		Enable hdmi tx hdcp support
 
 config SINGLE_PANEL_OUTPUT
 	bool "SINGLE_PANEL_OUTPUT"

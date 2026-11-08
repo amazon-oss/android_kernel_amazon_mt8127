@@ -334,13 +334,26 @@ static unsigned find_battery_quirk(struct hid_device *hdev)
 	return quirks;
 }
 
+static void hidinput_update_battery(struct hid_device *dev, int value)
+{
+	struct power_supply *battery = &dev->battery;
+
+	/* May have failed to initialize properly (e.g., duplicate uniqueId) */
+	if (battery->name == NULL)
+		return;
+
+	if (value != dev->battery_val) {
+		dev->battery_val = value;
+		power_supply_changed(battery);
+	}
+}
+
 static int hidinput_get_battery_property(struct power_supply *psy,
 					 enum power_supply_property prop,
 					 union power_supply_propval *val)
 {
 	struct hid_device *dev = container_of(psy, struct hid_device, battery);
 	int ret = 0;
-	__u8 *buf;
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -349,29 +362,13 @@ static int hidinput_get_battery_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_CAPACITY:
-
-		buf = kmalloc(2 * sizeof(__u8), GFP_KERNEL);
-		if (!buf) {
-			ret = -ENOMEM;
-			break;
-		}
-		ret = dev->hid_get_raw_report(dev, dev->battery_report_id,
-					      buf, 2,
-					      dev->battery_report_type);
-
-		if (ret != 2) {
-			if (ret >= 0)
-				ret = -EINVAL;
-			kfree(buf);
-			break;
-		}
-
 		if (dev->battery_min < dev->battery_max &&
-		    buf[1] >= dev->battery_min &&
-		    buf[1] <= dev->battery_max)
-			val->intval = (100 * (buf[1] - dev->battery_min)) /
+		    dev->battery_val >= dev->battery_min &&
+		    dev->battery_val <= dev->battery_max)
+			val->intval = (100 * (dev->battery_val - dev->battery_min)) /
 				(dev->battery_max - dev->battery_min);
-		kfree(buf);
+		else
+			ret = -EINVAL;
 		break;
 
 	case POWER_SUPPLY_PROP_MODEL_NAME:
@@ -435,6 +432,7 @@ static bool hidinput_setup_battery(struct hid_device *dev, unsigned report_type,
 
 	dev->battery_min = min;
 	dev->battery_max = max;
+	dev->battery_val = -1;
 	dev->battery_report_type = report_type;
 	dev->battery_report_id = field->report->id;
 
@@ -443,6 +441,7 @@ static bool hidinput_setup_battery(struct hid_device *dev, unsigned report_type,
 		hid_warn(dev, "can't register power supply: %d\n", ret);
 		kfree(battery->name);
 		battery->name = NULL;
+		goto out;
 	}
 
 	power_supply_powers(battery, &dev->dev);
@@ -1006,6 +1005,14 @@ void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct 
 		return;
 
 	input = field->hidinput->input;
+
+#ifdef CONFIG_HID_BATTERY_STRENGTH
+	if (usage->hid == HID_DC_BATTERYSTRENGTH) {
+		hidinput_update_battery(hid, value);
+		hid_dbg(hid, "battery value is %d (range %d-%d)\n",
+				value, hid->battery_min, hid->battery_max);
+	}
+#endif
 
 	if (!usage->type)
 		return;

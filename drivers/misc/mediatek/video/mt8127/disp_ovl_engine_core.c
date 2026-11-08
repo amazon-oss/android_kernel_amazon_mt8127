@@ -13,6 +13,7 @@
 #include "disp_ovl_engine_sw.h"
 #include "disp_ovl_engine_hw.h"
 #include "debug.h"
+#include "disp_drv_platform.h"
 
 // Ovl_engine parameter
 DISP_OVL_ENGINE_PARAMS disp_ovl_engine;
@@ -131,12 +132,14 @@ void disp_ovl_engine_init(void)
         wake_up_process(disp_ovl_engine_task);
 		DISP_OVL_ENGINE_INFO("kthread_create ovl_engine_kthread\n");    
 
+#if !MTK_TVSTICK_HDMI_PATH
         // Init rdma0 update thread
         init_waitqueue_head(&disp_rdma0_update_wq);
         disp_rdma0_update_task = kthread_create(
             disp_ovl_engine_rdma0_update_kthread, NULL, "rdma0_update_kthread");
         wake_up_process(disp_rdma0_update_task);
     	DISP_OVL_ENGINE_INFO("kthread_create rdma0_update_kthread\n");  
+#endif
 		
 #ifdef DISP_OVL_ENGINE_REQUEST
         // Init ovl_engine request
@@ -423,6 +426,10 @@ void disp_ovl_engine_wake_up_ovl_engine_thread(void)
 
 void disp_ovl_engine_interrupt_handler(unsigned int param)
 {
+    #if MTK_DISP_DIRECTLINK
+	if (disp_ovl_engine.bCouple && !(param & 0x1))
+		return;
+    #endif
     DISP_OVL_ENGINE_INFO("disp_ovl_engine_interrupt_handler %d\n",curr_instance_id);
     MMProfileLogEx(MTKFB_MMP_Events.interrupt_handler, MMProfileFlagPulse, param, 0);
 

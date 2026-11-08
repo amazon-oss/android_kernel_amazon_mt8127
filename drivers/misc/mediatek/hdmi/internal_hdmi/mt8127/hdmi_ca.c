@@ -1,4 +1,4 @@
-#ifdef MTK_IN_HOUSE_TEE_SUPPORT
+#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
@@ -49,6 +49,10 @@
 
 #include "tz_cross/hdmi_ta.h"
 #include "hdmi_ca.h"
+#include "hdmictrl.h"
+
+extern int hdmi_audio_signal_state(unsigned int state);
+bool ghdcp_auth_status = 0;
 
 KREE_SESSION_HANDLE ca_hdmi_handle = NULL;
 
@@ -68,7 +72,7 @@ bool fgCaHDMICreate(void)
 	printk("[HDMI]Create ca_hdmi_handle ok: %d\n", tz_ret);
     }
 
-	
+
 	return TRUE;
 }
 bool fgCaHDMIClose(void)
@@ -90,7 +94,7 @@ void vCaHDMIWriteReg(unsigned int u4addr,unsigned int u4data)
 {
 	TZ_RESULT tz_ret = 0;
 	MTEEC_PARAM param[2];
-	
+
 	if(get_boot_mode() != FACTORY_BOOT)
 	{
 	if(ca_hdmi_handle == NULL)
@@ -104,24 +108,24 @@ void vCaHDMIWriteReg(unsigned int u4addr,unsigned int u4data)
     	param[0].value.b = 0;
 	param[1].value.a = u4data;
     	param[1].value.b = 0;
-		
-	if(get_boot_mode() != FACTORY_BOOT) 	
-	{	
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_WRITE_REG, 
+
+	if(get_boot_mode() != FACTORY_BOOT)
+	{
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_WRITE_REG,
 		TZ_ParamTypes2(TZPT_VALUE_INPUT, TZPT_VALUE_INPUT), param);
 	}
     else
     {
-        *(volatile unsigned int*)(u4addr) = (u4data); 
+        *(volatile unsigned int*)(u4addr) = (u4data);
     }
-	
-	printk("[HDMI]W:%X=%X\n",param[0].value.a,param[1].value.a);
-	
+
+	pr_debug("[HDMI]W:%X=%X\n",param[0].value.a,param[1].value.a);
+
 	if (tz_ret != TZ_RESULT_SUCCESS)
 	{
 		printk("[HDMI]CA HDMI_TA_WRITE_REG err:%X\n",tz_ret);
 	}
-	
+
 }
 
 void vCaDPI1WriteReg(unsigned int u4addr,unsigned int u4data)
@@ -130,7 +134,7 @@ void vCaDPI1WriteReg(unsigned int u4addr,unsigned int u4data)
 	MTEEC_PARAM param[2];
 
 	printk("[HDMI_DPI1]W:%X=%X\n",u4addr,u4data);
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI_DPI1] TEE ca_dpi1_handle=NULL\n");
@@ -141,16 +145,16 @@ void vCaDPI1WriteReg(unsigned int u4addr,unsigned int u4data)
     	param[0].value.b = 0;
 	param[1].value.a = u4data;
     	param[1].value.b = 0;
-		
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_DPI1_WRITE_REG, 
+
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_DPI1_WRITE_REG,
 		TZ_ParamTypes2(TZPT_VALUE_INPUT, TZPT_VALUE_INPUT), param);
-	
-	
+
+
 	if (tz_ret != TZ_RESULT_SUCCESS)
 	{
 		printk("[HDMI_DPI1]CA HDMI_TA_DPI1_WRITE_REG err:%X\n",tz_ret);
 	}
-	
+
 }
 
 bool fgCaHDMIInstallHdcpKey(unsigned char *pdata,unsigned int u4Len)
@@ -159,7 +163,7 @@ bool fgCaHDMIInstallHdcpKey(unsigned char *pdata,unsigned int u4Len)
 	MTEEC_PARAM param[2];
 	unsigned char *ptr;
 	unsigned int i;
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI] TEE ca_hdmi_handle=NULL\n");
@@ -168,12 +172,10 @@ bool fgCaHDMIInstallHdcpKey(unsigned char *pdata,unsigned int u4Len)
 
 	printk("[HDMI]fgCaHDMIInstallHdcpKey,%d\n",u4Len);
 
-	if(u4Len >= 512)
-	{
+	if(u4Len > HDCPKEY_LENGTH_DRM)
 		return FALSE;
-	}
-	ptr = (unsigned char *)kmalloc(u4Len, GFP_KERNEL);
 
+	ptr = (unsigned char *)kmalloc(u4Len, GFP_KERNEL);
 	for(i=0;i<u4Len;i++)
 		ptr[i] = pdata[i];
 
@@ -181,15 +183,15 @@ bool fgCaHDMIInstallHdcpKey(unsigned char *pdata,unsigned int u4Len)
 	param[0].mem.size = u4Len;
 	param[1].value.a = u4Len;
 	param[1].value.b = 0;
-	
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_INSTALL_HDCP_KEY, 
+
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_INSTALL_HDCP_KEY,
             TZ_ParamTypes2(TZPT_MEM_INPUT, TZPT_VALUE_INPUT), param);
 	if (tz_ret != TZ_RESULT_SUCCESS)
 	{
 		printk("[HDMI]CA HDMI_TA_INSTALL_HDCP_KEY err:%X\n",tz_ret);
 		return FALSE;
 	}
-	
+
 	kfree(ptr);
 	return TRUE;
 }
@@ -200,17 +202,17 @@ bool fgCaHDMIGetAKsv(unsigned char *pdata)
 	MTEEC_PARAM param[1];
 	unsigned char *ptr;
 	unsigned char i ;
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI] TEE ca_hdmi_handle=NULL\n");
 		return FALSE ;
 	}
-	
-	ptr = (unsigned char *)kmalloc(5, GFP_KERNEL);	
+
+	ptr = (unsigned char *)kmalloc(5, GFP_KERNEL);
 	param[0].mem.buffer = ptr;
 	param[0].mem.size = 5;
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_GET_HDCP_AKSV, 
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_GET_HDCP_AKSV,
 			TZ_ParamTypes1(TZPT_MEM_OUTPUT), param);
 	if (tz_ret != TZ_RESULT_SUCCESS)
 	{
@@ -230,7 +232,7 @@ bool fgCaHDMILoadHDCPKey(void)
 {
 	TZ_RESULT tz_ret = 0;
 	MTEEC_PARAM param[1];
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI] TEE ca_hdmi_handle=NULL\n");
@@ -239,8 +241,8 @@ bool fgCaHDMILoadHDCPKey(void)
 
 	param[0].value.a = 0;
 	param[0].value.b = 0;
-		
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_LOAD_HDCP_KEY, 
+
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_LOAD_HDCP_KEY,
 		TZ_ParamTypes1(TZPT_VALUE_INPUT), param);
 
 	if (tz_ret != TZ_RESULT_SUCCESS)
@@ -254,7 +256,7 @@ bool fgCaHDMIHDCPReset(bool fgen)
 {
 	TZ_RESULT tz_ret = 0;
 	MTEEC_PARAM param[1];
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI] TEE ca_hdmi_handle=NULL\n");
@@ -266,8 +268,8 @@ bool fgCaHDMIHDCPReset(bool fgen)
 	else
 		param[0].value.a = 0;
 	param[0].value.b = 0;
-		
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_HDCP_RST, 
+
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_HDCP_RST,
 		TZ_ParamTypes1(TZPT_VALUE_INPUT), param);
 
 	if (tz_ret != TZ_RESULT_SUCCESS)
@@ -281,7 +283,7 @@ bool fgCaHDMIHDCPEncEn(bool fgen)
 {
 	TZ_RESULT tz_ret = 0;
 	MTEEC_PARAM param[1];
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI] TEE ca_hdmi_handle=NULL\n");
@@ -293,8 +295,8 @@ bool fgCaHDMIHDCPEncEn(bool fgen)
 	else
 		param[0].value.a = 0;
 	param[0].value.b = 0;
-		
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_HDCP_ENC_EN, 
+
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_HDCP_ENC_EN,
 		TZ_ParamTypes1(TZPT_VALUE_INPUT), param);
 
 	if (tz_ret != TZ_RESULT_SUCCESS)
@@ -308,7 +310,7 @@ bool fgCaHDMIVideoUnMute(bool fgen)
 {
 	TZ_RESULT tz_ret = 0;
 	MTEEC_PARAM param[1];
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI] TEE ca_hdmi_handle=NULL\n");
@@ -320,8 +322,8 @@ bool fgCaHDMIVideoUnMute(bool fgen)
 	else
 		param[0].value.a = 0;
 	param[0].value.b = 0;
-		
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_VID_UNMUTE, 
+
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_VID_UNMUTE,
 		TZ_ParamTypes1(TZPT_VALUE_INPUT), param);
 
 	if (tz_ret != TZ_RESULT_SUCCESS)
@@ -335,7 +337,7 @@ bool fgCaHDMIAudioUnMute(bool fgen)
 {
 	TZ_RESULT tz_ret = 0;
 	MTEEC_PARAM param[1];
-	
+
 	if(ca_hdmi_handle == NULL)
 	{
 		printk("[HDMI] TEE ca_hdmi_handle=NULL\n");
@@ -347,8 +349,8 @@ bool fgCaHDMIAudioUnMute(bool fgen)
 	else
 		param[0].value.a = 0;
 	param[0].value.b = 0;
-		
-	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_AUD_UNMUTE, 
+
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_AUD_UNMUTE,
 		TZ_ParamTypes1(TZPT_VALUE_INPUT), param);
 
 	if (tz_ret != TZ_RESULT_SUCCESS)
@@ -357,6 +359,32 @@ bool fgCaHDMIAudioUnMute(bool fgen)
 		return	FALSE;
 	}
 	return TRUE;
+}
+
+void vCaHDCPFailState(unsigned int u4addr, unsigned int u4data)
+{
+	TZ_RESULT tz_ret = 0;
+	MTEEC_PARAM param[2];
+
+	if (ca_hdmi_handle == 0) {
+		pr_err("[HDMI_HDCP] vCaHDCPFailState=0\n");
+		return;
+	}
+
+	param[0].value.a = u4addr & 0x3FF;
+	param[0].value.b = 0;
+	param[1].value.a = u4data;
+	param[1].value.b = 0;
+	pr_err("hdmi hdcp fail para1=%d, para2=%d\n", u4addr, u4data);
+	ghdcp_auth_status = 0;
+	hdmi_audio_signal_state(0);
+	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_HDCP_FAIL,
+				     TZ_ParamTypes2(TZPT_VALUE_INPUT, TZPT_VALUE_INPUT), param);
+
+	if (tz_ret != TZ_RESULT_SUCCESS)
+		pr_err("[HDMI_HDCP]CA vCaHDCPFailState err:%X\n", tz_ret);
+
+
 }
 
 #endif

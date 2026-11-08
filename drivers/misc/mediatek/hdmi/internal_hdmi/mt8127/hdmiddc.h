@@ -6,7 +6,7 @@
 #define EDID_BLOCK_LEN      128
 #define EDID_SIZE 512
 
-#define SIF1_CLOK 250 //27M/432 = 62.5Khz
+#define SIF1_CLOK 416 /* 26M/x = 62.5Khz */
 
 
 #define EDID_ID     0x50  // 0xA0

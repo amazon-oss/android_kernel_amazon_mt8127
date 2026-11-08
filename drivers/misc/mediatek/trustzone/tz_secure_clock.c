@@ -13,15 +13,21 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session, KREE_SESSION_HAND
 	struct file *file = NULL;
 	UINT64 u8Offset = 0;
 	int i = 0;
+#ifdef CONFIG_MTK_PMIC_DUMMY
+	DRM_UINT64 time_count64;
+	struct timeval tv;
+#else
 	int err = -ENODEV;
 	struct rtc_time tm;
 	DRM_UINT64 time_count64;
 	unsigned long time_count;
 	struct rtc_device *rtc;
+#endif
 	
 	struct TZ_GB_SECURETIME_INFO secure_time;
 	DRM_UINT64 cur_counter;
 	pr_err("enter  TEE_update_gb_time_intee \n");
+#ifndef CONFIG_MTK_PMIC_DUMMY
 	rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
 	
 	if (rtc == NULL) {
@@ -29,6 +35,7 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session, KREE_SESSION_HAND
 					__FILE__, CONFIG_RTC_HCTOSYS_DEVICE);
 		goto err_open;
 	}
+#endif
 	
 	paramTypes = TZ_ParamTypes3(TZPT_MEM_INPUT, TZPT_MEM_INPUT, TZPT_VALUE_OUTPUT);
 	param[0].mem.buffer = (void *) &secure_time;
@@ -48,6 +55,11 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session, KREE_SESSION_HAND
 	pr_err("%02x",((char*)&secure_time)[i]);
 	pr_err("\n");
 	
+#ifdef CONFIG_MTK_PMIC_DUMMY
+	do_gettimeofday(&tv);
+	time_count64 = (DRM_UINT64)tv.tv_sec;
+	pr_info("tv.tv_sec: %llu\n", time_count64);
+#else
 	err = rtc_read_time(rtc, &tm);
 	if (err) {
 		dev_err(rtc->dev.parent,
@@ -63,6 +75,7 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session, KREE_SESSION_HAND
 	
 	rtc_tm_to_time(&tm, &time_count);
 	time_count64 = (DRM_UINT64)time_count;
+#endif
 	memcpy((char *) &cur_counter, (char *) &time_count64, sizeof(DRM_UINT64));
 	
 	ret = KREE_TeeServiceCall(session, TZCMD_SECURETIME_SET_CURRENT_COUNTER, paramTypes, param);
@@ -77,10 +90,14 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session, KREE_SESSION_HAND
 		pr_info("ServiceCall TZCMD_SECURETIME_SET_CURRENT_COUNTER file_result %d\n", file_result);
 	}
 	
+#ifdef CONFIG_MTK_PMIC_DUMMY
+	err_read:
+#else
 	err_invalid:
 	err_read:
 	rtc_class_close(rtc);
 	err_open:
+#endif
 	if (file_result == GB_TIME_FILE_OK_SIGN)
 		return ret;
 	else
@@ -146,9 +163,14 @@ uint32_t paramTypes;
 TZ_RESULT ret;
 unsigned long time_count = 1392967151;
 
+#ifndef CONFIG_MTK_PMIC_DUMMY
 struct rtc_device *rtc = NULL;
 struct rtc_time tm;
+#endif
 int err = -ENODEV;
+#ifdef CONFIG_MTK_PMIC_DUMMY
+struct timeval tv;
+#endif
 
 ret = err;
 //pr_err("enter  TEE_Icnt_time \n");
@@ -159,6 +181,12 @@ param[1].mem.buffer = shm_p;
 param[1].mem.size = sizeof(struct TM_GB);
 paramTypes = TZ_ParamTypes2(TZPT_VALUE_INPUT, TZPT_MEM_OUTPUT);
 
+#ifdef CONFIG_MTK_PMIC_DUMMY
+do_gettimeofday(&tv);
+
+time_count = (DRM_UINT64)tv.tv_sec;
+pr_info("tv.tv_sec: %lu\n", time_count);
+#else
 
 rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
 
@@ -188,6 +216,7 @@ rtc_tm_to_time(&tm, &time_count);
 pr_notice("securetime increase result: %d %d %d %d %d %d %d\n", tm.tm_yday, tm.tm_year, tm.tm_mon
 	, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 #endif	
+#endif
 param[0].value.a = time_count;
 
 ret = KREE_TeeServiceCall(session, TZCMD_SECURETIME_INC_CURRENT_COUNTER, paramTypes, param);
@@ -200,10 +229,12 @@ pr_notice("securetime increase result: %d %d %d %d %d %d %d\n", ((struct TM_GB *
 	, ((struct TM_GB *) shm_p)->tm_hour, ((struct TM_GB *) shm_p)->tm_min, ((struct TM_GB *) shm_p)->tm_sec);
 #endif
 
+#ifndef CONFIG_MTK_PMIC_DUMMY
 err_read:
 err_invalid:
 rtc_class_close(rtc);
 err_open:
+#endif
 
 
 

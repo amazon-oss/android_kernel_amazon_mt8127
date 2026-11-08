@@ -28,6 +28,9 @@ static int wd_restart(enum wd_restart_type type);
 static int set_mode(enum ext_wdt_mode mode);
 static int wd_dram_reserved_mode(bool enabled);
 static int thermal_direct_mode_config(WD_REQ_CTL en, WD_REQ_MODE mode);
+static int wd_set_persist_data(int persist_data);
+static int wd_set_persist_data_bit(WD_PERSIST_DATA persist_data);
+static int wd_get_persist_data();
 
 static struct wd_api g_wd_api_obj = {
 	.ready = 1,
@@ -49,6 +52,9 @@ static struct wd_api g_wd_api_obj = {
 	.wd_get_kick_bit = wd_get_kick_bit,
 	.wd_dram_reserved_mode = wd_dram_reserved_mode,
 	.wd_thermal_direct_mode_config = thermal_direct_mode_config,
+	.wd_set_persist_data = wd_set_persist_data,
+	.wd_set_persist_data_bit = wd_set_persist_data_bit,
+	.wd_get_persist_data = wd_get_persist_data,
 };
 
 /* struct wd_private_api  *g_wd_private_api_obj; */
@@ -418,6 +424,29 @@ static int thermal_direct_mode_config(WD_REQ_CTL en, WD_REQ_MODE mode)
 
 
 #endif
+
+
+/* Need to keep this function even if WDT is disabled */
+static int wd_set_persist_data_bit(WD_PERSIST_DATA persist_data)
+{
+	printk("wd set persist_data bit %x\n", persist_data);
+	mtk_wd_SetNonResetReg2_bit((int)persist_data, 1); /* data is used as bit position */
+
+	return 0;
+}
+
+static int wd_set_persist_data(int persist_data)
+{
+	printk("wd set persist_data bit %x\n", persist_data);
+	mtk_wd_SetNonResetReg2((int)persist_data); /* data is used as value */
+
+	return 0;
+}
+
+static int wd_get_persist_data()
+{
+	return mtk_wd_GetNonResetReg2();
+}
 
 /* public interface implimentation end */
 

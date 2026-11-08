@@ -369,6 +369,10 @@ int disp_check_engine_status(int mutexID)
     unsigned int engine = DISP_REG_GET(DISP_REG_CONFIG_MUTEX_MOD(mutexID)); 
     unsigned int mutex_inten = DISP_REG_GET(DISP_REG_CONFIG_MUTEX_INTEN);
 
+#if MTK_TVSTICK_HDMI_PATH
+    return 0;
+#endif
+
     if((DISP_REG_GET(DISP_REG_CONFIG_MMSYS_CG_CON0)&DDP_SMI_LARB0_POWER_BIT) != 0)
     {
         result = -1;
@@ -1937,7 +1941,7 @@ static int disp_reg_backup(void)
 	reg_backup(DISP_REG_CONFIG_DISP_OUT_SEL     );
 
 	// backup dpi1 from bls for 8127 hdmi main path
-	#if MTK_HDMI_MAIN_PATH
+	#if MTK_HDMI_MAIN_PATH || MTK_TVSTICK_HDMI_PATH
 	reg_backup(DISP_REG_CONFIG_DPI1_SEL     );
 	#endif
 	
@@ -2179,7 +2183,7 @@ static int disp_reg_restore(void)
     reg_restore(DISP_REG_CONFIG_DISP_OUT_SEL     );     
 
 	// restore dpi1 from bls for 8127 hdmi main path
-    #if MTK_HDMI_MAIN_PATH
+    #if MTK_HDMI_MAIN_PATH || MTK_TVSTICK_HDMI_PATH
 	reg_restore(DISP_REG_CONFIG_DPI1_SEL     );
     #endif
     
@@ -2407,10 +2411,12 @@ static int disp_reg_restore(void)
     //disp_path_release_mutex();
     DISP_MSG("disp_reg_restore() done \n");
     
+#if !MTK_TVSTICK_HDMI_PATH
     disp_bls_init(DISP_GetScreenWidth(),DISP_GetScreenHeight());
 
     DpEngine_COLORonInit();
     DpEngine_COLORonConfig(DISP_GetScreenWidth(),DISP_GetScreenHeight());
+#endif
 
     return 0;        
 }
@@ -2423,6 +2429,7 @@ int disp_intr_restore(void)
     //DISP_REG_SET(DISP_REG_SCL_INTEN,              disp_intr_status[DISP_MODULE_SCL]  ); 
     DISP_REG_SET(DISP_REG_OVL_INTEN,              disp_intr_status[DISP_MODULE_OVL]  ); 
     //DISP_REG_SET(DISP_REG_WDMA_INTEN,             disp_intr_status[DISP_MODULE_WDMA]); 
+#if !MTK_DISP_DIRECTLINK
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 	if (0 == (gOvlLayerSecure[0]|gOvlLayerSecure[1]|gOvlLayerSecure[2]|gOvlLayerSecure[3]))
     {
@@ -2444,12 +2451,15 @@ int disp_intr_restore(void)
 		}
 	}
 #endif
+#endif
 
 	DISP_REG_SET(DISP_REG_RDMA_INT_ENABLE,        disp_intr_status[DISP_MODULE_RDMA0]); 
     //DISP_REG_SET(DISP_REG_RDMA_INT_ENABLE+0xa000, disp_intr_status[DISP_MODULE_RDMA1]); 
     DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTEN,     disp_intr_status[DISP_MODULE_MUTEX]); 
 
+#if !MTK_DISP_DIRECTLINK
     disp_register_rdma1_irq();
+#endif
 
     return 0;
 }
@@ -2461,6 +2471,7 @@ int disp_intr_disable_and_clear(void)
     //disp_intr_status[DISP_MODULE_ROT] = DISP_REG_GET(DISP_REG_ROT_INTERRUPT_ENABLE);
     //disp_intr_status[DISP_MODULE_SCL] = DISP_REG_GET(DISP_REG_SCL_INTEN);
     disp_intr_status[DISP_MODULE_OVL] = DISP_REG_GET(DISP_REG_OVL_INTEN);
+#if !MTK_DISP_DIRECTLINK
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
     if (0 == (gOvlLayerSecure[0]|gOvlLayerSecure[1]|gOvlLayerSecure[2]|gOvlLayerSecure[3]))
 #endif
@@ -2483,6 +2494,7 @@ int disp_intr_disable_and_clear(void)
 		}
 	}
 #endif
+#endif
     //disp_intr_status[DISP_MODULE_WDMA1] = DISP_REG_GET(DISP_REG_WDMA_INTEN+0x1000);
     disp_intr_status[DISP_MODULE_RDMA0] = DISP_REG_GET(DISP_REG_RDMA_INT_ENABLE);
     //disp_intr_status[DISP_MODULE_RDMA1] = DISP_REG_GET(DISP_REG_RDMA_INT_ENABLE+0xa000);
@@ -2493,6 +2505,7 @@ int disp_intr_disable_and_clear(void)
     //DISP_REG_SET(DISP_REG_SCL_INTEN, 0);
     DISP_REG_SET(DISP_REG_OVL_INTEN, 0);
     //DISP_REG_SET(DISP_REG_WDMA_INTEN, 0);
+#if !MTK_DISP_DIRECTLINK
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT    
 	if (0 == (gOvlLayerSecure[0]|gOvlLayerSecure[1]|gOvlLayerSecure[2]|gOvlLayerSecure[3]))
     {
@@ -2515,6 +2528,7 @@ int disp_intr_disable_and_clear(void)
 		}
 	}
 #endif
+#endif
     DISP_REG_SET(DISP_REG_RDMA_INT_ENABLE, 0);
     //DISP_REG_SET(DISP_REG_RDMA_INT_ENABLE+0x1000, 0);
     DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTEN, 0);
@@ -2526,6 +2540,7 @@ int disp_intr_disable_and_clear(void)
     //DISP_REG_SET(DISP_REG_SCL_INTSTA, 0);               
     DISP_REG_SET(DISP_REG_OVL_INTSTA, 0);    
     //DISP_REG_SET(DISP_REG_WDMA_INTSTA, 0); 
+#if !MTK_DISP_DIRECTLINK
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
     if (0 == (gOvlLayerSecure[0]|gOvlLayerSecure[1]|gOvlLayerSecure[2]|gOvlLayerSecure[3]))
     {
@@ -2548,11 +2563,14 @@ int disp_intr_disable_and_clear(void)
 			}
 	}
 #endif
+#endif
     DISP_REG_SET(DISP_REG_RDMA_INT_STATUS, 0);    
     //DISP_REG_SET(DISP_REG_RDMA_INT_STATUS+0x1000, 0);            
     DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTSTA, 0);
 
+#if !MTK_DISP_DIRECTLINK
     disp_unregister_rdma1_irq();
+#endif
     //clear bls interrupt status
     DISP_REG_SET(DISP_REG_BLS_INTSTA, 0);
 
@@ -2577,6 +2595,36 @@ int disp_rdma1_intr_disable_and_clear(void)
 
     return 0;
 }
+
+#if MTK_TVSTICK_HDMI_PATH
+extern void DPI1_RDMA0_Unregister(void);
+int disp_main_path_clock_off(char* name)
+{
+
+    DISP_MSG("turn off RDMA, BLS, COLOR\n");
+
+    RDMAStop(0);
+    RDMAReset(0);
+    DISP_REG_SET(DISP_REG_BLS_PWM_DUTY, 0x0); //set bls pwm duty to 0
+    DISP_REG_SET(DISP_REG_BLS_EN, 0x0); //bls
+    DISP_REG_SET(DISP_REG_COLOR_CM1_EN, 0x0); //color 0xf400bf60
+    DISP_REG_SET(DISP_REG_COLOR_START, 0x0); //color 0xf400bf00
+
+    //toggle once to set clk mgr status
+    enable_clock(MT_CG_DISP0_DISP_COLOR       , "DDP");
+    disable_clock(MT_CG_DISP0_DISP_COLOR       , "DDP");
+    enable_clock(MT_CG_DISP0_DISP_BLS         , "DDP");
+    disable_clock(MT_CG_DISP0_DISP_BLS         , "DDP");
+    enable_clock(MT_CG_DISP0_DISP_RDMA, "DDP");
+    disable_clock(MT_CG_DISP0_DISP_RDMA, "DDP");
+    enable_clock(MT_CG_DISP0_MDP_BLS_26M         , "DDP");
+    disable_clock(MT_CG_DISP0_MDP_BLS_26M         , "DDP");
+
+    DISP_REG_SET(DISP_REG_CONFIG_MMSYS_CG_CON0, DISP_REG_GET(DISP_REG_CONFIG_MMSYS_CG_CON0)|0x80B0);
+    DPI1_RDMA0_Unregister();
+
+}
+#endif
 
 int disp_path_clock_on(char* name)
 {
@@ -2717,8 +2765,10 @@ int disp_path_clock_off(char* name)
 //    //disable_clock(MT_CG_DISP0_WDMA0_SMI   , "DDP");
 
     // Better to reset DMA engine before disable their clock
+#if !MTK_DISP_DIRECTLINK
     RDMAStop(0);
     RDMAReset(0);
+#endif
 /* porting from abc123 */
 /*
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
@@ -2808,6 +2858,11 @@ int disp_path_clock_off(char* name)
 int disp_path_rdma_start(unsigned idx)
 {
 	return RDMAStart(idx);
+}
+
+int disp_path_ovl_start(void)
+{
+    return OVLStart();
 }
 
 #else
@@ -2913,6 +2968,88 @@ int disp_path_config_layer_(OVL_CONFIG_STRUCT* pOvlConfig,int OvlSecure)
     // config overlay
     MMProfileLogEx(DDP_MMP_Events.Debug, MMProfileFlagPulse, pOvlConfig->layer, pOvlConfig->layer_en);
 
+#if MTK_DISP_DIRECTLINK
+    if(pOvlConfig->layer_en && pOvlConfig->security == OVL_LAYER_SECURE_BUFFER)
+    {
+		gOvlLayerSecure[pOvlConfig->layer] = 1;
+	}
+    else
+    {
+		gOvlLayerSecure[pOvlConfig->layer] = 0;
+    }
+#ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
+    if (OvlSecure == 1)
+    {
+    	MTEEC_PARAM param[4];
+        unsigned int paramTypes;
+        TZ_RESULT ret;
+        KREE_SHAREDMEM_HANDLE p_ovl_config_layer_share_handle = 0;
+        KREE_SHAREDMEM_PARAM  sharedParam;
+        //p_ovl_config_layer_share_handle = disp_register_share_memory(pOvlConfig, sizeof(OVL_CONFIG_STRUCT));
+        // Register shared memory
+        sharedParam.buffer = pOvlConfig;
+        sharedParam.size = sizeof(OVL_CONFIG_STRUCT);
+        ret = KREE_RegisterSharedmem (ddp_mem_session_handle(), &p_ovl_config_layer_share_handle, &sharedParam);
+        if (ret != TZ_RESULT_SUCCESS)
+        {
+            DISP_ERR("disp_register_share_memory Error: %d, line:%d, ddp_mem_session(%d)", ret, __LINE__, (unsigned int)ddp_mem_session_handle());
+            return 0;
+        }
+
+        param[0].memref.handle = (uint32_t) p_ovl_config_layer_share_handle;
+        param[0].memref.offset = 0;
+        param[0].memref.size = sizeof(OVL_CONFIG_STRUCT);
+        param[1].value.a = gOvlLayerSecure[pOvlConfig->layer]; // wether the display buffer is a secured one
+        param[1].value.b = MTK_DISP_DIRECTLINK;
+        paramTypes = TZ_ParamTypes2(TZPT_MEMREF_INPUT, TZPT_VALUE_INPUT);
+        DISP_DBG("config_layer handle=0x%x \n", param[0].memref.handle);
+
+        ret = KREE_TeeServiceCall(ddp_session_handle(), TZCMD_DDP_OVL_LAYER_CONFIG, paramTypes, param);
+        if(ret!= TZ_RESULT_SUCCESS)
+        {
+            DISP_ERR("TZCMD_DDP_OVL_LAYER_CONFIG fail, ret=%d \n", ret);
+        }
+
+        ret = KREE_UnregisterSharedmem(ddp_mem_session_handle(), p_ovl_config_layer_share_handle);
+        if (ret)
+        {
+            DISP_ERR("UREE_UnregisterSharedmem p_ovl_config_layer_share_handle Error: %d, line:%d, ddp_mem_session(%d)", ret, __LINE__, (unsigned int)ddp_mem_session_handle());
+        }
+    }
+    else
+#endif
+    {
+        OVLLayerSwitch(pOvlConfig->layer, pOvlConfig->layer_en);
+        if(!gOvlLayerSecure[pOvlConfig->layer])
+        {
+            MMProfileLogEx(DDP_MMP_Events.Debug, MMProfileFlagPulse,
+                pOvlConfig->layer, pOvlConfig->layer_en);
+            if (pOvlConfig->layer_en)
+            {
+                OVLLayerConfig(pOvlConfig->layer,   // layer
+                           pOvlConfig->source,   // data source (0=memory)
+                           pOvlConfig->fmt,
+                           pOvlConfig->addr, // addr
+                           pOvlConfig->src_x,  // x
+                           pOvlConfig->src_y,  // y
+                           pOvlConfig->src_pitch, //pitch, pixel number
+                           pOvlConfig->dst_x,  // x
+                           pOvlConfig->dst_y,  // y
+                           pOvlConfig->dst_w, // width
+                           pOvlConfig->dst_h, // height
+                           pOvlConfig->keyEn,  //color key
+                           pOvlConfig->key,  //color key
+                           pOvlConfig->aen, // alpha enable
+                           pOvlConfig->alpha); // alpha
+                OVLStart();
+            }
+        }
+        else
+        {
+            DISP_ERR("error, do not support security==OVL_LAYER_SECURE_BUFFER! \n");
+        }
+    }
+#else
     if(pOvlConfig->security==OVL_LAYER_SECURE_BUFFER)
 		gOvlLayerSecure[pOvlConfig->layer] = 1;
 	else
@@ -3035,6 +3172,7 @@ int disp_path_config_layer_(OVL_CONFIG_STRUCT* pOvlConfig,int OvlSecure)
             }
         }
     }
+#endif
 
     return 0;
 }
@@ -3062,14 +3200,18 @@ int disp_path_config_layer_ovl_engine(OVL_CONFIG_STRUCT* pOvlConfig,int OvlSecur
     if(!gOvlEngineControl)
 		return 0;
 
+#if !MTK_DISP_DIRECTLINK
 	OVLStop();		/*monica_porting3; originally removed fro 8127 but 8135 has it */
+#endif
 
     _DISP_DumpLayer(pOvlConfig);
 
     disp_path_config_layer_(pOvlConfig,OvlSecure);
 
+#if !MTK_DISP_DIRECTLINK
 	OVLSWReset();	/* porting from abc123; */
    	OVLStart();  	/* porting from abc123; originally removed fro 8127 but 8135 has it */
+#endif
 
     return 0;
 }
@@ -3131,6 +3273,9 @@ void disp_path_unregister_ovl_wdma_callback(void (*callback)(unsigned int param)
 
 int disp_path_config_OVL_WDMA_path(int mutex_id)
 {
+#if MTK_DISP_DIRECTLINK
+    return 0;
+#endif
 #if 1
 	// mutex module
     DISP_REG_SET(DISP_REG_CONFIG_MUTEX_MOD(mutex_id), 0x48); //ovl, wdma1
@@ -3451,7 +3596,11 @@ int disp_path_config_mutex(struct disp_path_config_struct *pConfig, int mutexId)
         DISP_REG_SET(DISP_REG_CONFIG_MUTEX_SOF(mutexId), mutexSof);
         DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTSTA, (1 << mutexId));
 
+        #if MTK_DISP_DIRECTLINK
+        DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTEN , 0x201);  //bit 0.9
+        #else
         DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTEN , 0x1e0f);  //bit 0.1.2.3. 9.10.11.12
+        #endif
         DISP_REG_SET(DISP_REG_CONFIG_MUTEX_EN(mutexId), 1);
         if (DISP_IsDecoupleMode()) {
         	disp_path_init_m4u_port(DISP_MODULE_RDMA0);
@@ -3518,7 +3667,9 @@ int disp_path_config_setting(struct disp_path_config_struct *pConfig, int mutexI
     	        DISP_REG_SET(DISP_REG_CONFIG_DISP_OUT_SEL, 0x1);         // dpi0
     	    #endif
         	}
+#if !MTK_TVSTICK_HDMI_PATH
             DISP_REG_SET(DISP_REG_CONFIG_DISP_OUT_SEL, 1);         // Output to DPI0
+#endif
 #endif
             break;
 
@@ -3538,6 +3689,22 @@ int disp_path_config_setting(struct disp_path_config_struct *pConfig, int mutexI
     		/*bls<-dpi1 0xf4000064*/
     		/* 0 from bls, 1 from rdma1*/
             DISP_REG_SET(DISP_REG_CONFIG_DPI1_SEL, 0x0);
+#elif MTK_TVSTICK_HDMI_PATH
+            if (pConfig->srcModule == DISP_MODULE_RDMA0)
+            {
+                DISP_REG_SET(DISP_REG_CONFIG_DISP_OVL_MOUT_EN, 1<<1);  // OVL-->WDMA0
+                DISP_REG_SET(DISP_REG_CONFIG_DISP_OUT_SEL, 0x6);          //bls -> dpi1
+                DISP_REG_SET(DISP_REG_CONFIG_DPI1_SEL, 0x0);       // dpi1_sel from bls
+            }
+            else
+            {
+                DISP_REG_SET(DISP_REG_CONFIG_DISP_OVL_MOUT_EN, 1<<1);  // OVL-->WDMA0
+                DISP_REG_SET(DISP_REG_CONFIG_DISP_OUT_SEL, 0x6);          //rmda1 -> dpi1
+                DISP_REG_SET(DISP_REG_CONFIG_DPI1_SEL, 0x1);       // dpi1_sel from rdma1
+
+                DISP_REG_SET(DISP_REG_CONFIG_DISP_UFOE_SEL, 0x0);
+                DISP_REG_SET(DISP_REG_CONFIG_DPI0_SEL, 0x0);
+            }
 #else
             DISP_REG_SET_FIELD(REG_FLD(2, 2), DISP_REG_CONFIG_DISP_OUT_SEL, 0x2); // rdma1_mout to dpi1
             DISP_REG_SET(DISP_REG_CONFIG_DPI1_SEL, 0x1);        // dpi1_sel from rdma1
@@ -3878,7 +4045,11 @@ int disp_path_config_setting(struct disp_path_config_struct *pConfig, int mutexI
             #if defined(MTK_OVERLAY_ENGINE_SUPPORT)
             RDMAConfig(rdma_idx,
                        RDMA_MODE_MEMORY,       ///direct link mode
+#if MTK_TVSTICK_HDMI_PATH
+                       pConfig->inFormat,                // inputFormat
+#else
                        eRGB888,                // inputFormat
+#endif
                        pConfig->addr,          // address
                        pConfig->outFormat,     // output format
                        pConfig->pitch,          //
@@ -3889,7 +4060,11 @@ int disp_path_config_setting(struct disp_path_config_struct *pConfig, int mutexI
             #else
             RDMAConfig(rdma_idx, 
                            RDMA_MODE_MEMORY,       		///direct link mode
+#if MTK_TVSTICK_HDMI_PATH
+                           pConfig->inFormat,    				// inputFormat
+#else
                            eARGB8888,    				// inputFormat
+#endif
                            pConfig->addr,               // address
                            pConfig->outFormat,   		// output format
                            pConfig->pitch,              // pitch

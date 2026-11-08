@@ -21,6 +21,7 @@
 #if defined(MTK_INTERNAL_MHL_SUPPORT)
 #include "mhl_dbg.h"
 #endif
+#include "hdmitx_drv.h"
 
 void DBG_Init(void);
 void DBG_Deinit(void);
@@ -30,7 +31,10 @@ extern void hdmi_cable_fake_plug_in(void);
 extern void hdmi_cable_fake_plug_out(void);
 extern void hdmi_mmp_enable(int enable);
 extern void hdmi_pattern(int enable);
-
+extern void hdmi_dump_enable(int enable);
+extern void set_rdma_full2limit_enable(unsigned int enable);
+extern int mtkfb_pause_direct_link_path(void);
+extern int mtkfb_continue_direct_link_path(void);
 
 // ---------------------------------------------------------------------------
 //  External variable declarations
@@ -63,7 +67,7 @@ static void process_dbg_opt(const char *opt)
 
     }
 
-#if defined(MTK_HDMI_SUPPORT)
+#if defined(CONFIG_MTK_HDMI_SUPPORT)
     else if (0 == strncmp(opt, "on", 2))
     {
         hdmi_power_on();
@@ -118,17 +122,16 @@ static void process_dbg_opt(const char *opt)
             goto Error;
         }
     }
-#if defined(MTK_INTERNAL_MHL_SUPPORT)
+#if defined(CONFIG_MTK_INTERNAL_HDMI_SUPPORT)
     else if((0 == strncmp(opt, "dbgtype:", 8))||
         (0 == strncmp(opt, "w:", 2))||
         (0 == strncmp(opt, "r:", 2))||
-        (0 == strncmp(opt, "w6:", 3))||
-        (0 == strncmp(opt, "r6:", 3))||
         (0 == strncmp(opt, "hdcp:", 5))||
         (0 == strncmp(opt, "status", 6))||
         (0 == strncmp(opt, "help", 4))||
         (0 == strncmp(opt, "res:", 4))||
-        (0 == strncmp(opt, "edid", 4)))
+        (0 == strncmp(opt, "edid", 4))||
+	(0 == strncmp(opt, "irq:", 4)))
     {
         mt_hdmi_debug_write(opt);
     }
@@ -153,6 +156,31 @@ static void process_dbg_opt(const char *opt)
             goto Error;
         }
     }
+    else if (0 == strncmp(opt, "hdmidump:", 9))
+    {
+        if (0 == strncmp(opt + 9, "on", 2))
+        {
+            hdmi_dump_enable(1);
+        }
+        else if (0 == strncmp(opt + 9, "off", 3))
+        {
+            hdmi_dump_enable(0);
+        }
+        else if (0 == strncmp(opt + 9, "img", 3))
+        {
+            hdmi_dump_enable(7);
+        }
+        else
+        {
+            goto Error;
+        }
+    }
+    else if (0 == strncmp(opt, "range_enable:", 13))
+    {
+        char *p = (char *)opt + 13;
+        unsigned int level = (unsigned int) simple_strtoul(p, &p, 10);
+        set_rdma_full2limit_enable(level);
+    }
     else if (0 == strncmp(opt, "hdmi_pattern:", 13))
     {
         if (0 == strncmp(opt + 13, "on", 2))
@@ -166,6 +194,21 @@ static void process_dbg_opt(const char *opt)
         else if (0 == strncmp(opt + 13, "svp", 3))
         {
             hdmi_pattern(2);
+        }
+        else
+        {
+            goto Error;
+        }
+    }
+    else if (0 == strncmp(opt, "dl:", 3))
+    {
+        if (0 == strncmp(opt + 3, "on", 2))
+        {
+            mtkfb_continue_direct_link_path();
+        }
+        else if (0 == strncmp(opt + 3, "off", 3))
+        {
+            mtkfb_pause_direct_link_path();
         }
         else
         {
@@ -209,18 +252,15 @@ static ssize_t debug_open(struct inode *inode, struct file *file)
 }
 
 
-static char debug_buffer[2048];
+static char debug_buffer[4096];
 
 static ssize_t debug_read(struct file *file,
                           char __user *ubuf, size_t count, loff_t *ppos)
 {
-    const int debug_bufmax = sizeof(debug_buffer) - 1;
-    int n = 0;
-
-    n += scnprintf(debug_buffer + n, debug_bufmax - n, STR_HELP);
-    debug_buffer[n++] = 0;
-
-    return simple_read_from_buffer(ubuf, count, ppos, debug_buffer, n);
+	if (strlen(debug_buffer))
+		return simple_read_from_buffer(ubuf, count, ppos, debug_buffer, strlen(debug_buffer));
+	else
+		return simple_read_from_buffer(ubuf, count, ppos, STR_HELP, strlen(STR_HELP));
 }
 
 

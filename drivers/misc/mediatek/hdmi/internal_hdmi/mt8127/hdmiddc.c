@@ -20,17 +20,17 @@ void internal_ddc_read(unsigned int u4Reg, unsigned int *p4Data)
 {
 	*p4Data = (*(volatile unsigned int*)(u4Reg));
 }
-    
+
 void internal_ddc_write(unsigned int u4Reg, unsigned int u4data)
 {
-	*(volatile unsigned int*)(u4Reg) = (u4data); 
+	*(volatile unsigned int*)(u4Reg) = (u4data);
 }
-    
+
 unsigned int hdmi_ddc_read(unsigned short u2Reg)
 {
     unsigned int u4Data;
 	internal_ddc_read(HDMIDDC_BASE+u2Reg, &u4Data);
-	
+
 	HDMI_DDC_LOG("[R]ddc = 0x%04x, data = 0x%08x\n", u2Reg, u4Data);
 	return u4Data;
 }
@@ -48,28 +48,28 @@ void hdmi_ddc_write(unsigned short u2Reg, unsigned int u4Data)
 #define SIF_SET_BIT(u4Addr, u4Val)  SIF_WRITE32((u4Addr), (SIF_READ32(u4Addr) | (u4Val)))
 #define SIF_CLR_BIT(u4Addr, u4Val)  SIF_WRITE32((u4Addr), (SIF_READ32(u4Addr) & (~(u4Val))))
 
-#define IS_SIF_BIT(u4Addr, u4Val)   ((SIF_READ32(u4Addr) & (u4Val)) == (u4Val)) 
+#define IS_SIF_BIT(u4Addr, u4Val)   ((SIF_READ32(u4Addr) & (u4Val)) == (u4Val))
 
 #define SIF_WRITE_MASK(u4Addr, u4Mask, u4Offet, u4Val)  SIF_WRITE32(u4Addr, ((SIF_READ32(u4Addr) & (~(u4Mask))) | (((u4Val) << (u4Offet)) & (u4Mask))))
 #define SIF_READ_MASK(u4Addr, u4Mask, u4Offet)  ((SIF_READ32(u4Addr) & (u4Mask)) >> (u4Offet))
 
-#define DDCM_DATA0_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA0, 0)  
-#define DDCM_DATA1_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA1, 8)  
-#define DDCM_DATA2_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA2, 16)  
-#define DDCM_DATA3_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA3, 24)  
-#define DDCM_DATA4_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA4, 0)  
-#define DDCM_DATA5_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA5, 8)  
-#define DDCM_DATA6_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA6, 16)  
-#define DDCM_DATA7_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA7, 24)  
+#define DDCM_DATA0_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA0, 0)
+#define DDCM_DATA1_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA1, 8)
+#define DDCM_DATA2_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA2, 16)
+#define DDCM_DATA3_READ()   SIF_READ_MASK(DDC_DDCMD0, DDCM_DATA3, 24)
+#define DDCM_DATA4_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA4, 0)
+#define DDCM_DATA5_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA5, 8)
+#define DDCM_DATA6_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA6, 16)
+#define DDCM_DATA7_READ()   SIF_READ_MASK(DDC_DDCMD1, DDCM_DATA7, 24)
 
-#define DDCM_DATA0_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA0, 0,  u4Val)  
-#define DDCM_DATA1_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA1, 8,  u4Val)  
-#define DDCM_DATA2_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA2, 16, u4Val)  
-#define DDCM_DATA3_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA3, 24, u4Val)  
-#define DDCM_DATA4_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA4, 0,  u4Val)  
-#define DDCM_DATA5_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA5, 8,  u4Val)  
-#define DDCM_DATA6_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA6, 16, u4Val)  
-#define DDCM_DATA7_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA7, 24, u4Val) 
+#define DDCM_DATA0_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA0, 0,  u4Val)
+#define DDCM_DATA1_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA1, 8,  u4Val)
+#define DDCM_DATA2_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA2, 16, u4Val)
+#define DDCM_DATA3_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD0, DDCM_DATA3, 24, u4Val)
+#define DDCM_DATA4_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA4, 0,  u4Val)
+#define DDCM_DATA5_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA5, 8,  u4Val)
+#define DDCM_DATA6_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA6, 16, u4Val)
+#define DDCM_DATA7_WRITE(u4Val)   SIF_WRITE_MASK(DDC_DDCMD1, DDCM_DATA7, 24, u4Val)
 
 #define DDCM_CLK_DIV_READ()        SIF_READ_MASK(DDC_DDCMCTL0, DDCM_CLK_DIV_MASK, DDCM_CLK_DIV_OFFSET)
 #define DDCM_CLK_DIV_WRITE(u4Val)  SIF_WRITE_MASK(DDC_DDCMCTL0, DDCM_CLK_DIV_MASK, DDCM_CLK_DIV_OFFSET, u4Val)
@@ -87,16 +87,16 @@ int i4DDCM_Suspend(void *param)
 {
     HDMI_DDC_FUNC();
 	//SIF_CLR_BIT(SIF_INTEN, DDCCI_INTEN);
-    SIF_CLR_BIT(DDC_DDCMCTL0, DDCM_SM0EN); 
-	
+    SIF_CLR_BIT(DDC_DDCMCTL0, DDCM_SM0EN);
+
 	return 0;
 }
 
 int i4DDCM_Resume(void *param)
-{	
+{
 	HDMI_DDC_FUNC();
 
-	SIF_SET_BIT(DDC_DDCMCTL0, DDCM_SM0EN); 
+	SIF_SET_BIT(DDC_DDCMCTL0, DDCM_SM0EN);
     //SIF_SET_BIT(SIF_INTEN, DDCCI_INTEN);
 
 	return 0;
@@ -105,8 +105,9 @@ int i4DDCM_Resume(void *param)
 unsigned int DDCM_Init(void)
 {
     HDMI_DDC_FUNC();
-    SIF_SET_BIT(DDC_DDCMCTL0, DDCM_SM0EN); 
+    SIF_SET_BIT(DDC_DDCMCTL0, DDCM_SM0EN);
     SIF_CLR_BIT(DDC_DDCMCTL0, DDCM_ODRAIN);
+	SIF_SET_BIT(DDC_DDCMCTL0, DDCM_SCL_STRECH);
 
 	return 1;
 }
@@ -127,8 +128,8 @@ static unsigned char _DDCMRead(unsigned char ucCurAddrMode, unsigned int u4ClkDi
 {
 	unsigned int u4Ack;
 	unsigned char ucReadCount, ucIdx, ucAckCount, ucAckFinal, ucTmpCount;
-	
-    HDMI_DDC_FUNC();   
+
+    HDMI_DDC_FUNC();
 	DDCM_Init();
 	if ((pucValue == NULL) ||
 		(u4Count == 0)||
@@ -137,19 +138,19 @@ static unsigned char _DDCMRead(unsigned char ucCurAddrMode, unsigned int u4ClkDi
 		return 0;
 	}
 
-    ucIdx = 0; 
-		
+    ucIdx = 0;
+
 	// check busy/trigger bit
 	if (IS_SIF_BIT(DDC_DDCMCTL1, DDCM_TRI))
 	{
 		return 0;
 	}
 
-		
+
     DDCM_CLK_DIV_WRITE(u4ClkDiv);
 
     DDCM_TrigMode(DDCM_START);
-	
+
 	if (ucDev > EDID_ID) //Max'0619'04, 4-block EEDID reading
 	{
   	   DDCM_DATA0_WRITE(0x60);
@@ -205,7 +206,7 @@ static unsigned char _DDCMRead(unsigned char ucCurAddrMode, unsigned int u4ClkDi
     {
        goto ddc_master_read_end;
     }
-		  
+
 	ucAckCount = (u4Count-1)/8;
 	ucAckFinal = 0;
     while (u4Count > 0)
@@ -234,7 +235,7 @@ static unsigned char _DDCMRead(unsigned char ucCurAddrMode, unsigned int u4ClkDi
 		  HDMI_DDC_LOG("[DDC] Device(0x%x)/Word(0x%x) Address NACK! ACK(0x%x)\n", ucDev, u4Addr, u4Ack);
 		  break;
 	    }
-	  
+
 		switch(ucReadCount)
 		{
 		  case 8:
@@ -261,7 +262,7 @@ static unsigned char _DDCMRead(unsigned char ucCurAddrMode, unsigned int u4ClkDi
         ucIdx += ucReadCount;
     }
 
-ddc_master_read_end:	
+ddc_master_read_end:
     DDCM_TrigMode(DDCM_STOP);
 	return ucIdx;
 }
@@ -270,7 +271,7 @@ static unsigned char _DDCMWrite(unsigned char ucCurAddrMode, unsigned int u4ClkD
 {
 	unsigned int u4Ack;
 	unsigned char ucWriteCount, ucIdx, ucTmpCount;
-	
+
 	HDMI_DDC_FUNC();
 	DDCM_Init();
 	if ((pucValue == NULL) ||
@@ -280,8 +281,8 @@ static unsigned char _DDCMWrite(unsigned char ucCurAddrMode, unsigned int u4ClkD
 		return 0;
 	}
 
-	ucIdx = 0; 
-		
+	ucIdx = 0;
+
 	// check busy/trigger bit
 	if (IS_SIF_BIT(DDC_DDCMCTL1, DDCM_TRI))
 	{
@@ -299,7 +300,7 @@ static unsigned char _DDCMWrite(unsigned char ucCurAddrMode, unsigned int u4ClkD
     {
         DDCM_DATA1_WRITE(u4Addr);
         DDCM_PGLEN_WRITE(0x01);
-        DDCM_TrigMode(DDCM_WRITE_DATA);  
+        DDCM_TrigMode(DDCM_WRITE_DATA);
     	u4Ack = DDCM_ACK_READ();
         if(u4Ack != 0x3)
         {
@@ -311,12 +312,12 @@ static unsigned char _DDCMWrite(unsigned char ucCurAddrMode, unsigned int u4ClkD
         DDCM_DATA1_WRITE((u4Addr>>8));
         DDCM_DATA2_WRITE(u4Addr);
         DDCM_PGLEN_WRITE(0x02);
-        DDCM_TrigMode(DDCM_WRITE_DATA);  
+        DDCM_TrigMode(DDCM_WRITE_DATA);
     	u4Ack = DDCM_ACK_READ();
         if(u4Ack != 0x7)
         {
            goto ddc_master_write_end;
-        }		
+        }
     }
 
 	while (u4Count > 0)
@@ -356,12 +357,12 @@ static unsigned char _DDCMWrite(unsigned char ucCurAddrMode, unsigned int u4ClkD
 		  HDMI_DDC_LOG("[DDC] Device(0x%x)/Word(0x%x) Address NACK! ACK(0x%x)\n", ucDev, u4Addr, u4Ack);
 		  break;
 	    }
-	
+
 		u4Count -= ucWriteCount;
 		ucIdx += ucWriteCount;
 	}
 
-ddc_master_write_end:	
+ddc_master_write_end:
 	DDCM_TrigMode(DDCM_STOP);
 	return ucIdx;
 }
@@ -383,7 +384,7 @@ unsigned int DDCM_RanAddr_Write(unsigned int u4ClkDiv, unsigned char ucDev, unsi
 		return 0;
 	}
 
-   
+
 	if(ucAddrType == SIF_8_BIT)
 	{
 	    u4WriteCount1 = ((255 - u4Addr) + 1);
@@ -443,25 +444,25 @@ unsigned char DDCM_RanAddr_Read(unsigned int u4ClkDiv, unsigned char ucDev, unsi
 	u4ReadCount = (u4ReadCount > u4Count) ? u4Count : u4ReadCount;
 	ucReturnVaule = _DDCMRead(0, u4ClkDiv, ucDev, u4Addr, ucAddrType, pucValue, u4ReadCount);
 
- 
+
 	return (ucReturnVaule);
 }
 
-unsigned char fgDDCDataRead(unsigned char bDevice, unsigned char bData_Addr, unsigned char bDataCount,unsigned char *prData)                                   
+unsigned char fgDDCDataRead(unsigned char bDevice, unsigned char bData_Addr, unsigned char bDataCount,unsigned char *prData)
 {
   HDMI_DDC_FUNC();
   if(DDCM_RanAddr_Read(SIF1_CLOK, (unsigned char)bDevice, (unsigned int)bData_Addr, SIF_8_BIT, (unsigned char *)prData, (unsigned int)bDataCount)== bDataCount)
-    return TRUE;	
-  else  
-	return FALSE;	
-}	
+    return TRUE;
+  else
+	return FALSE;
+}
 
 unsigned char fgDDCDataWrite(unsigned char bDevice, unsigned char bData_Addr, unsigned char bDataCount,unsigned char *prData)
 {
 	HDMI_DDC_FUNC();
 	if((DDCM_RanAddr_Write(SIF1_CLOK,  (unsigned char)bDevice, (unsigned int) bData_Addr, SIF_8_BIT,  (unsigned char *)prData, (unsigned int)bDataCount))== bDataCount)
-	  return TRUE;	  
-	else  
+	  return TRUE;
+	else
 	  return FALSE;
 }
 

@@ -48,6 +48,9 @@
 
 #include <mach/mt_pmic_wrap.h>
 
+#include <mach/sync_write.h>
+#define cec_write(x, y)		mt65xx_reg_sync_writel(y, x)
+#define cec_read(x)		(*(volatile unsigned int*)(x))
 
 
 static unsigned short _CEC_Status;
@@ -89,9 +92,12 @@ static unsigned char CEC_txQ_read_idx;
 static unsigned char CEC_txQ_write_idx;
 CEC_ACK_INFO_T cec_send_result;
 CEC_FRAME_DESCRIPTION *cec_receive_msg;
-static unsigned char cec_msg_report_pending = 0; 
+static unsigned char cec_msg_report_pending = 0;
 extern size_t hdmi_cec_on;
 extern void cec_timer_wakeup(void);
+extern void cec_signal_enable(void);
+extern void cec_timer_sleep(void);
+extern int report_virtual_hdmikey(void);
 
 #define IS_RX_Q_EMPTY() (CEC_rxQ_read_idx == CEC_rxQ_write_idx)
 #define IS_RX_Q_FULL() (((CEC_rxQ_write_idx+1)%RX_Q_SIZE) == CEC_rxQ_read_idx)
@@ -212,7 +218,7 @@ do { \
 #define IS_RX_H_EOM() (RegReadFldAlign(RX_HEADER, RXED_H_EOM))
 #define IS_RX_D_EOM() (RegReadFldAlign(RX_HEADER, RXED_D_EOM))
 
-#define GET_HW_RX_DATA() (RegReadFldAlign(RX_DATA, RXED_DATA)) 
+#define GET_HW_RX_DATA() (RegReadFldAlign(RX_DATA, RXED_DATA))
 
 #define FLOW_CONTROL_ACK(onoff) \
 do {\
@@ -226,7 +232,7 @@ do {\
 #define TX_FAIL_MAX() (RegReadFldAlign(TX_FAIL, RETX_MAX))
 #define CLR_TX_FAIL_MAX()  vRegWriteFldAlign(TX_FAIL, 0, RETX_MAX)
 
-#define TX_FAIL_RECORD() u4RegRead4B(TX_FAIL)  
+#define TX_FAIL_RECORD() u4RegRead4B(TX_FAIL)
 
 #define TX_FAIL_SOURCE() (RegReadFldAlign(TX_FAIL, SOURCE))
 #define CLR_TX_FAIL_SOURCE()  vRegWriteFldAlign(TX_FAIL, 0, SOURCE)
@@ -244,36 +250,58 @@ do { \
 	ENABLE_TX_EN();\
 } while (0)
 
-#define GET_TX_BIT_COUNTER() (RegReadFldAlign(TX_STATUS, TX_BIT_COUNTER)) 
+#define GET_TX_BIT_COUNTER() (RegReadFldAlign(TX_STATUS, TX_BIT_COUNTER))
 
-unsigned int IS_HDMI_HTPLG(void) 
+unsigned int IS_HDMI_HTPLG(void)
 {
  return (RegReadFldAlign(RX_EVENT, HDMI_HTPLG));
 }
 
-unsigned int IS_HDMI_PORD(void) 
+unsigned int IS_HDMI_PORD(void)
 {
  return (RegReadFldAlign(RX_EVENT, HDMI_PORD));
 }
 
-void vClear_cec_irq(void) 
+void vClear_cec_irq(void)
 {
+	/*
 	//27mhz, clear	HPD/PORT and cec int
   vRegWriteFldAlign(TR_CONFIG, 1, CLEAR_CEC_IRQ);
   udelay(2);
   vRegWriteFldAlign(TR_CONFIG, 0, CLEAR_CEC_IRQ);
-	
+
 	//32khz, clear HPD/PORT and CEC RX int
 	vRegWriteFldAlign(RX_GEN_WD, 1, HDMI_PORD_INT_CLR);
 	vRegWriteFldAlign(RX_GEN_WD, 1, RX_INT_CLR);
 	vRegWriteFldAlign(RX_GEN_WD, 1, HDMI_HTPLG_INT_CLR);
 
+	vRegWriteFldAlign(RX_GEN_WD, 0, HDMI_PORD_INT_CLR);
+	vRegWriteFldAlign(RX_GEN_WD, 0, RX_INT_CLR);
+	vRegWriteFldAlign(RX_GEN_WD, 0, HDMI_HTPLG_INT_CLR);
+	*/
+
+	unsigned int temp;
+
+	/* 27mhz, clear  HPD/PORT and cec int */
+	temp = cec_read(HDMICEC_BASE + TR_CONFIG);
+	temp = temp | (1 << 15); //CLEAR_CEC_IRQ
+	cec_write((HDMICEC_BASE + TR_CONFIG), temp);
+	temp = temp & (~(1 << 15)); //CLEAR_CEC_IRQ
+	cec_write((HDMICEC_BASE + TR_CONFIG), temp);
+
+	/* 32khz, clear HPD/PORT and CEC RX int */
+	temp = cec_read(HDMICEC_BASE + RX_GEN_WD);
+	temp = temp | ((1 << 16)|(1 << 17)|(1 << 18));
+	cec_write((HDMICEC_BASE + RX_GEN_WD), temp);
+	temp = temp & (~((1 << 16)|(1 << 17)|(1 << 18)));
+	cec_write((HDMICEC_BASE + RX_GEN_WD), temp);
+
 }
 
-void vCec_pdn_32k(void) 
+void vCec_pdn_32k(void)
 {
   vRegWriteFldAlign(CEC_CKGEN, 1, CEC_32K_PDN);
-  
+
   vRegWriteFldAlign(RX_GEN_WD, 1, HDMI_PORD_INT_CLR);
   vRegWriteFldAlign(RX_GEN_WD, 1, RX_INT_CLR);
   vRegWriteFldAlign(RX_GEN_WD, 1, HDMI_HTPLG_INT_CLR);
@@ -281,7 +309,7 @@ void vCec_pdn_32k(void)
   vRegWriteFldAlign(RX_GEN_WD, 0, HDMI_PORD_INT_CLR);
   vRegWriteFldAlign(RX_GEN_WD, 0, RX_INT_CLR);
   vRegWriteFldAlign(RX_GEN_WD, 0, HDMI_HTPLG_INT_CLR);
-  
+
   vRegWriteFldAlign(RX_GEN_WD, 0, HDMI_PORD_INT_32K_EN);
   vRegWriteFldAlign(RX_GEN_WD, 0, RX_INT_32K_EN);
   vRegWriteFldAlign(RX_GEN_WD, 0, HDMI_HTPLG_INT_32K_EN);
@@ -290,16 +318,36 @@ void vCec_pdn_32k(void)
 
 void vEnable_hotplug_pord_int(unsigned char u1enable)
 {
+	/*
   if(u1enable==0)
   {
    vRegWriteFldAlign(RX_EVENT, 1, HDMI_PORD_INT_EN);
    vRegWriteFldAlign(RX_EVENT, 1, HDMI_HTPLG_INT_EN);
+	vRegWriteFldAlign(RX_GEN_WD, 0, RX_INT_32K_EN);
   }
   else
   {
    vRegWriteFldAlign(RX_EVENT, 0, HDMI_PORD_INT_EN);
    vRegWriteFldAlign(RX_EVENT, 0, HDMI_HTPLG_INT_EN);
-  } 	
+	vRegWriteFldAlign(RX_GEN_WD, 1, RX_INT_32K_EN);
+  }
+	*/
+
+	unsigned int temp, temp1;
+
+	temp = cec_read(HDMICEC_BASE + RX_EVENT);
+	temp1 = cec_read(HDMICEC_BASE + RX_GEN_WD);
+
+	if (u1enable == 0) {
+		temp = temp |((1 << 8)|(1<<9));
+		temp1 = temp1 & (~(1 << 1));
+	} else {
+		temp = temp & (~((1 << 8)|(1<<9)));
+		temp1 = temp1 | (1 << 1);
+	}
+
+	cec_write((HDMICEC_BASE + RX_EVENT), temp);
+	cec_write((HDMICEC_BASE + RX_GEN_WD), temp1);
 }
 void vRegWrite4BMsk(unsigned short reg16, unsigned int val32, unsigned int msk32)
 {
@@ -317,22 +365,23 @@ void internal_cec_read(unsigned int u4Reg, unsigned int *p4Data)
 
 void internal_cec_write(unsigned int u4Reg, unsigned int u4data)
 {
-	*(volatile unsigned int*)(u4Reg) = (u4data); 
+	*(volatile unsigned int*)(u4Reg) = (u4data);
 }
 
 unsigned int hdmi_cec_read(unsigned short u2Reg)
 {
     unsigned int u4Data;
 	internal_cec_read(HDMICEC_BASE+u2Reg, &u4Data);
-	
+
 	//HDMI_CEC_LOG("[R]cec = 0x%04x, data = 0x%08x\n", u2Reg, u4Data);
 	return u4Data;
 }
+EXPORT_SYMBOL(hdmi_cec_read);
 
 void hdmi_cec_write(unsigned short u2Reg, unsigned int u4Data)
 {
 	internal_cec_write(HDMICEC_BASE+u2Reg, u4Data);
-	
+
     //HDMI_CEC_LOG("[W]cec= 0x%04x, data = 0x%08x\n", u2Reg, u4Data);
 }
 
@@ -342,14 +391,13 @@ unsigned int hdmi_cec_2n(unsigned int u4Data)
 	unsigned int u4resultvalue=1;
     unsigned char u1number;
 
-	if(u4Data==0) return 0; //must be not 0
-	if(u4Data==0x20) return 0xffffffff;
-	if(u4Data>0x20) return 0; //must  not exceed over 0x20
-	
-	for(u1number=0; u1number<u4Data; u1number++)
-	{
-       u4resultvalue *= 2;
-	}
+	if ((u4Data == 0) || (u4Data > 0x20))
+		return 0; //must be not 0 or > 20
+	else if (u4Data == 0x20)
+		return 0xffffffff;
+
+	u4resultvalue <<= u4Data;
+
 	//HDMI_CEC_LOG("hdmi_cec_2n data = 0x%08x\n", u4resultvalue-1);
 
     return (u4resultvalue-1);
@@ -358,7 +406,7 @@ unsigned int hdmi_cec_2n(unsigned int u4Data)
 u32 hdmi_cec_maskvalue(unsigned int u4Width, unsigned int u4Startbit)
 {
     unsigned int u4Data=0xffffffff, i;
-	
+
 	for(i=0; i<u4Width; i++)
     {
      u4Data &=(~(hdmi_cec_2n(u4Startbit+i)+1));
@@ -370,7 +418,7 @@ u32 hdmi_cec_maskvalue(unsigned int u4Width, unsigned int u4Startbit)
 /*----------------------------------------------------------------------------*/
 
 void vRegWrite4B(unsigned short u2Reg, unsigned int u4Data)
-{   
+{
     HDMI_CEC_FUNC();
     hdmi_cec_write(u2Reg, u4Data);
 }
@@ -379,10 +427,10 @@ void hdmi_cec_init(void)
 {
 	HDMI_CEC_FUNC();
        cec_msg_report_pending = 0;
-       
+
 	_rCECPhysicAddr.ui2_pa = 0xffff;
 	_rCECPhysicAddr.ui1_la = 0x0;
-	
+
   	_CEC_Status = 0;
 	_CEC_ErrStatus = 0;
     _u1TxFailCause = FAIL_NONE;
@@ -474,15 +522,19 @@ void hdmi_cec_init(void)
 void hdmi_cec_power_on(unsigned char pwr)
 {
     HDMI_CEC_FUNC();
+	unsigned int temp;
 
-    if(pwr == 0) 
-    {
-        vRegWriteFldAlign(CEC_CKGEN,1,PDN);
-    }
-    else
-    {
-        vRegWriteFldAlign(CEC_CKGEN,0,PDN);
-    }
+	temp = cec_read(HDMICEC_BASE + CEC_CKGEN);
+
+	if (pwr == 0) {
+		temp = temp |(1 << 16);
+		/* vRegWriteFldAlign(CEC_CKGEN,1,PDN);*/
+	} else {
+		temp = temp & (~(1 << 16));
+		/* vRegWriteFldAlign(CEC_CKGEN,0,PDN); */
+	}
+
+	cec_write((HDMICEC_BASE + CEC_CKGEN),temp);
 }
 static unsigned char CEC_rx_enqueue(CEC_FRAME_DESCRIPTION* frame)
 {
@@ -497,7 +549,7 @@ static unsigned char CEC_rx_enqueue(CEC_FRAME_DESCRIPTION* frame)
 	memcpy(&(CEC_rx_msg_queue[CEC_rxQ_write_idx]), frame, sizeof(CEC_FRAME_DESCRIPTION));
 	// CYJ.NOTE: no critical section
 	CEC_rxQ_write_idx = (CEC_rxQ_write_idx + 1) % RX_Q_SIZE;
-
+	pr_info("[hdmi][cec_command] rxing opcode-->start 0x%x\n", frame->blocks.opcode);
 	return TRUE;
 }
 
@@ -507,7 +559,7 @@ static void _CEC_Receiving(void)
 	static CEC_FRAME_DESCRIPTION* frame = &ActiveRXFrame;
 	unsigned int data;
 	unsigned char i, rxlen, is_d_eom, ret;
-	
+
 	HDMI_CEC_FUNC();
 
 	// no data available
@@ -585,7 +637,7 @@ static void _CEC_Receiving(void)
 	// for operand
 	for (i=0; i<rxlen; i++)
 	{
-		
+
 		if ((*size) > 15)
 		{
 			HDMI_CEC_LOG("Receive Data Length is wrong ! \n");
@@ -596,7 +648,7 @@ static void _CEC_Receiving(void)
 			ASSERT((*size) >= 2);
 			frame->blocks.operand[(*size)-2] = data & 0xff;
 			data >>= 8;
-			(*size)++;	
+			(*size)++;
 		}
 	}
 
@@ -752,7 +804,7 @@ static void _CEC_Check_Active_Tx_Result(void)
 	HDMI_CEC_FUNC();
 
 	if (IsCECStatus(STATE_TXING_FRAME))
-	{	
+	{
             if (IsCECStatus(STATE_HW_RETX))
 	     {
 			if (TX_FAIL_SOURCE())
@@ -783,7 +835,7 @@ static void _CEC_Check_Active_Tx_Result(void)
 		}
 		else if ((ActiveTXFrame->sendidx+1) == (ActiveTXFrame->size))
 		{
-	
+
 			if (IS_TX_FSM_IDLE() && IS_TX_FINISH())
 			{
 				DISABLE_ALL_TX_INT();
@@ -811,7 +863,7 @@ static CEC_FRAME_DESCRIPTION* _CEC_Get_Cur_TX_Q_Msg(void)
 static unsigned char _CEC_TX_Dequeue(void)
 {
     HDMI_CEC_FUNC();
-	
+
 	if (IS_TX_Q_EMPTY())
 	{
 		return FALSE;
@@ -822,19 +874,24 @@ static unsigned char _CEC_TX_Dequeue(void)
 
 	return TRUE;
 }
-static void _CEC_tx_msg_notify(UINT8 result, void* tag)
+static void _CEC_tx_msg_notify(UINT8 result, CEC_FRAME_DESCRIPTION *frame)
 {
 	if (result == 0x00)
 	{
 	    HDMI_CEC_LOG("cec tx result ok\n");
-           cec_send_result.pv_tag = tag;
+           cec_send_result.pv_tag = frame->txtag;
            cec_send_result.e_ack_cond  = CEC_ACK_COND_OK;
 	    vNotifyAppHdmiCecState(HDMI_CEC_TX_STATUS);
+		pr_info("[hdmi][cec_command]sending opcode-->success: 0x%x\n", frame->blocks.opcode);
 	}
 	else if (result == 0x01)
 	{
-	    HDMI_CEC_LOG("cec tx result fail\n");
-           cec_send_result.pv_tag = tag;
+		if ((frame->size == 0x2) && (frame->blocks.header.initiator == 4)
+			&& (frame->blocks.header.destination == 4) && (frame->blocks.opcode == 0))
+			pr_info("[hdmi][cec_command]sending opcode-->success\n");
+		else
+			pr_info("[hdmi] cec tx result fail\n");
+           cec_send_result.pv_tag = frame->txtag;
            cec_send_result.e_ack_cond  = CEC_ACK_COND_NO_RESPONSE;
 	    vNotifyAppHdmiCecState(HDMI_CEC_TX_STATUS);
 	}
@@ -848,6 +905,48 @@ static void vApiNotifyCECDataArrival(CEC_FRAME_DESCRIPTION* frame)
         cec_receive_msg = frame;
         vNotifyAppHdmiCecState(HDMI_CEC_GET_CMD);
 }
+
+
+static unsigned char vGetcecmsg_poweron(CEC_FRAME_DESCRIPTION *frame)
+{
+	pr_debug("[hdmi][cec]vGetcecmsg_poweron opcode %x\n",frame->blocks.opcode);
+	if (frame->blocks.opcode == OPCODE_SET_STREAM_PATH) {
+		if ((((frame->blocks.operand[0] & 0xff) << 8)
+			| (frame->blocks.operand[1] & 0xff)) == _rCECPhysicAddr.ui2_pa) {
+			pr_info("[hdmi][cec]cec receive power command(0x86) from tv\n");
+			return 1;
+		} else {
+			msleep(100); /*wait for reading edid*/
+			if ((((frame->blocks.operand[0] & 0xff) << 8)
+				| (frame->blocks.operand[1] & 0xff)) == _rCECPhysicAddr.ui2_pa) {
+				pr_info("[hdmi][cec]cec receive power command(0x86) from tv\n");
+				return 1;
+			} else {
+				pr_err("[hdmi][cec]TV request to wakeup device : fail(0x86)\n");
+			}
+		}
+	}
+
+	if (frame->blocks.opcode == OPCODE_ROUTING_CHANGE) {
+		if ((((frame->blocks.operand[2] & 0xff) << 8)
+			| (frame->blocks.operand[3] & 0xff)) == _rCECPhysicAddr.ui2_pa) {
+			pr_info("[hdmi][cec]cec receive power command(0x80) from tv\n");
+			return 1;
+		} else {
+			msleep(100); /*wait for reading edid*/
+			if ((((frame->blocks.operand[2] & 0xff) << 8)
+				| (frame->blocks.operand[3] & 0xff)) == _rCECPhysicAddr.ui2_pa) {
+				pr_info("[hdmi][cec]cec receive power command(0x80) from tv\n");
+				return 1;
+			} else {
+				pr_err("[hdmi][cec]TV request to wakeup device : fail(0x80)\n");
+			}
+		}
+	}
+
+	return 0;
+}
+
 static void PrintFrameDescription(CEC_FRAME_DESCRIPTION* frame)
 {
 	unsigned char i;
@@ -1037,7 +1136,7 @@ static void _CEC_TX_Queue_Loop(void)
           		ClrCECStatus(STATE_TXING_FRAME);
           		RESET_HW_TX();
               }
-	    
+
 		_CEC_Check_Active_Tx_Result();
 		if (IsCECStatus(STATE_TX_FRAME_SUCCESS))
 		{
@@ -1047,7 +1146,7 @@ static void _CEC_TX_Queue_Loop(void)
 			{
 				ASSERT(0);
 			}
-                     _CEC_tx_msg_notify(0x00, frame->txtag);
+                     _CEC_tx_msg_notify(0x00, frame);
 			_CEC_TX_Dequeue();
 			ClrCECStatus(STATE_TX_FRAME_SUCCESS);
 		}
@@ -1064,10 +1163,10 @@ static void _CEC_TX_Queue_Loop(void)
 			ClrCECStatus(STATE_TX_NOACK);
 			// CYJ.NOTE: retransmission
 			if (frame->reTXcnt == RETX_MAX_CNT)
-			{       
+			{
 				_u1TxFailCause = FAIL_NONE;
 				HDMI_CEC_LOG( "ReTX reach MAX\n");
-                            _CEC_tx_msg_notify(0x01, frame->txtag);
+                            _CEC_tx_msg_notify(0x01, frame);
 				_CEC_TX_Dequeue();
 			}
 		}
@@ -1086,15 +1185,28 @@ static void _CEC_TX_Queue_Loop(void)
 			{
 				_u1ReTxCnt++;
 				return;
-			}	
+			}
 			else
 			{
 				_u1ReTxCnt = 0;
 			}
 		}
 		HDMI_CEC_LOG( "Send a new message\n");
+		/* Hack for PHILIPS 32PFL4505DF7 TV which gives wrong PA in
+		 * TV power OFF state, which lead to wrong active source on TV
+		 * while doing OneTouchPlay.
+		 * Check if PA for 0x82 opcode is 0xFFFF, then assign it
+		 * with latest PA after TV power ON */
+		if (frame->blocks.opcode == 0x82) {
+			if ((frame->blocks.operand[0] == 0xFF) && (frame->blocks.operand[1] == 0xFF)) {
+				pr_info("[hdmi][cec_command] correct PA before sending 0x82, TV issue\n");
+				frame->blocks.operand[0] = (unsigned char)((_rCECPhysicAddr.ui2_pa >> 8) & 0xFF);
+				frame->blocks.operand[1] = (unsigned char)(_rCECPhysicAddr.ui2_pa & 0x00FF);
+			}
+		}
 		PrintFrameDescription(frame);
 		_CEC_SendFrame(frame);
+		pr_info("[hdmi][cec_command]sending opcode-->start: 0x%x\n", frame->blocks.opcode);
 	}
 }
 
@@ -1365,28 +1477,28 @@ void hdmi_u4CecSendSLTData(unsigned char *pu1Data)
 		CTSTestFrame.blocks.operand[i] = *(pu1Data + i + 1);
 	}
 	_CEC_TX_Enqueue(&CTSTestFrame);
-	
+
 }
 
 void hdmi_GetSLTData(CEC_SLT_DATA* rCecSltData)
-{	
+{
 	unsigned char i;
 	CEC_FRAME_DESCRIPTION* frame;
 	HDMI_CEC_FUNC();
 
 	frame = CEC_rx_dequeue();
-	
+
 	if (frame == NULL)
 	{
 	    rCecSltData->u1Size = 5;
-    	for(i = 0; i < rCecSltData->u1Size; i++)	
+    	for(i = 0; i < rCecSltData->u1Size; i++)
 	{
-    		rCecSltData->au1Data[i] = i;	
-    	}	
+    		rCecSltData->au1Data[i] = i;
+    	}
 		ClrCECStatus(STATE_RX_COMPLETE_NEW_FRAME);
 		return;
 	}
-	
+
 	if(frame->blocks.opcode == 0x01)
 	{
 	if (CEC_frame_validation(frame))
@@ -1399,10 +1511,10 @@ void hdmi_GetSLTData(CEC_SLT_DATA* rCecSltData)
 	{
 		rCecSltData->u1Size = 14;
 	}
-	for(i = 0; i < rCecSltData->u1Size; i++)	
+	for(i = 0; i < rCecSltData->u1Size; i++)
 	{
-		rCecSltData->au1Data[i] = frame->blocks.operand[i];	
-	}	
+		rCecSltData->au1Data[i] = frame->blocks.operand[i];
+	}
 	HDMI_CEC_LOG("[CEC SLT] Receive data \n");
 	HDMI_CEC_LOG("[CEC SLT] size = 0x%x \n", rCecSltData->u1Size);
 	HDMI_CEC_LOG("[CEC SLT] data = ");
@@ -1473,10 +1585,10 @@ static void CEC_rx_msg_notify(unsigned char u1rxmode)
 	//HDMI_CEC_FUNC();
 	if(u1rxmode==CEC_SLT_MODE)
      return;
-	
+
 	//if(u1rxmode==CEC_NORMAL_MODE)
      //return;
-	
+
 	while (1)
 	{
          if(cec_msg_report_pending == 1)
@@ -1484,20 +1596,24 @@ static void CEC_rx_msg_notify(unsigned char u1rxmode)
             //HDMI_CEC_LOG("wait user get cmd\n");
             return;
          }
-        
+
          frame = CEC_rx_dequeue();
-         
+
          if (frame == NULL)
          {
             ClrCECStatus(STATE_RX_COMPLETE_NEW_FRAME);
             return;
          }
-     
+
          if (CEC_frame_validation(frame))
          {
-                  HDMI_CEC_LOG ("Receive message\n");
+                  HDMI_CEC_LOG("Receive message\n");
                   PrintFrameDescription(frame);
-                  vApiNotifyCECDataArrival(frame);              
+			if (vGetcecmsg_poweron(frame))
+				report_virtual_hdmikey();
+
+			pr_info("[hdmi][cec_command]rxing opcode-->success: 0x%x\n", frame->blocks.opcode);
+                  vApiNotifyCECDataArrival(frame);
                   cec_msg_report_pending = 1;
                   if(u1rxmode==CEC_CTS_MODE)
                   {
@@ -1523,14 +1639,14 @@ void hdmi_cec_mainloop(unsigned char u1rxmode)
  unsigned char hdmi_cec_isrprocess(unsigned char u1rxmode)
 {
 	unsigned char u1ReceivedDst;
-    
+
 	if (HW_RX_HEADER_ARRIVED())
 	{
 		u1ReceivedDst = GET_DST_FIELD_RECEIVING();
 		HDMI_CEC_LOG( "u1ReceivedDst = 0x%08x\n", u1ReceivedDst);
 		if(u1rxmode==CEC_CTS_MODE) _rCECLaAddr.aui1_la[0] = 4;
 		if ((u1ReceivedDst == _rCECLaAddr.aui1_la[0]) || (u1ReceivedDst == _rCECLaAddr.aui1_la[1]) ||
-			(u1ReceivedDst == _rCECLaAddr.aui1_la[2]) || (u1ReceivedDst == 0xf)) 			
+			(u1ReceivedDst == _rCECLaAddr.aui1_la[2]) || (u1ReceivedDst == 0xf))
 		{
 			HDMI_CEC_LOG( "RX:H\n");
 			if (IsCECStatus(STATE_RX_GET_NEW_HEADER))
@@ -1542,7 +1658,7 @@ void hdmi_cec_mainloop(unsigned char u1rxmode)
 		}
 		else
 		{
-			ClrCECStatus(STATE_RX_GET_NEW_HEADER);	
+			ClrCECStatus(STATE_RX_GET_NEW_HEADER);
 			HDMI_CEC_LOG("RX:H False\n");
 		}
 	}
@@ -1587,7 +1703,7 @@ void hdmi_cec_mainloop(unsigned char u1rxmode)
 		{
 			DISABLE_ALL_TX_INT();
 			SetCECStatus(STATE_HW_RETX);
-			
+
 			if (TX_FAIL_MAX()|IS_TX_FSM_FAIL())
 			{
 				HDMI_CEC_LOG("TX Fail: %x\n", TX_FAIL_RECORD());
@@ -1601,16 +1717,16 @@ void hdmi_cec_mainloop(unsigned char u1rxmode)
 		HDMI_CEC_LOG("TX HW FSM: %x\n", TX_FSM_STATUS());
 	}
 
-	if (IS_RX_Q_EMPTY()) 
+	if (IS_RX_Q_EMPTY())
 		return 0;
-	else 
+	else
 		return 1;
 }
 
 void CECMWSetLA(CEC_LA_ADDRESS* prLA)
 {
     HDMI_CEC_FUNC();
-	 
+
 	memcpy(&_rCECLaAddr, prLA, sizeof(CEC_LA_ADDRESS));
 
 	ASSERT(_rCECLaAddr.ui1_num <= 3);
@@ -1647,8 +1763,8 @@ void CECMWSetLA(CEC_LA_ADDRESS* prLA)
 	}
 
    	HDMI_CEC_LOG("MW Set LA & PA \n");
-	HDMI_CEC_LOG("LA num = 0x%x , LA = 0x%x 0x%x 0x%x\n", _rCECLaAddr.ui1_num, _rCECLaAddr.aui1_la[0], _rCECLaAddr.aui1_la[1], _rCECLaAddr.aui1_la[2]); 
-    HDMI_CEC_LOG("PA = %04x \n", _rCECLaAddr.ui2_pa); 
+	HDMI_CEC_LOG("LA num = 0x%x , LA = 0x%x 0x%x 0x%x\n", _rCECLaAddr.ui1_num, _rCECLaAddr.aui1_la[0], _rCECLaAddr.aui1_la[1], _rCECLaAddr.aui1_la[2]);
+    HDMI_CEC_LOG("PA = %04x \n", _rCECLaAddr.ui2_pa);
 }
 
  void hdmi_CECMWSetLA(CEC_DRV_ADDR_CFG_T* prAddr)
@@ -1670,18 +1786,24 @@ void CECMWSetLA(CEC_LA_ADDRESS* prLA)
 	CECMWSetLA(&rLA);
 }
 
- void hdmi_CECMWGet(CEC_FRAME_DESCRIPTION* frame)
+void hdmi_CECMWGet(CEC_FRAME_DESCRIPTION* frame)
 {
 	HDMI_CEC_FUNC();
-       memcpy(frame, cec_receive_msg, sizeof(CEC_FRAME_DESCRIPTION));
-       cec_msg_report_pending = 0;
+	if (cec_msg_report_pending == 0) {
+		pr_err("[hdim_cec]get cec msg fail\n");
+		return;
+	}
+	if (NULL != cec_receive_msg) {
+		memcpy(frame, cec_receive_msg, sizeof(CEC_FRAME_DESCRIPTION));
+		cec_msg_report_pending = 0;
+	}
 }
 
  void hdmi_CECMWSend(CEC_SEND_MSG_T* msg)
 {
 	unsigned int i4Ret;
 	unsigned char i;
-	
+
 	HDMI_CEC_FUNC();
 
 	if ((msg->t_frame_info.ui1_init_addr > 0xf) || (msg->t_frame_info.ui1_dest_addr > 0xf) || (msg->t_frame_info.z_operand_size > LOCAL_CEC_MAX_OPERAND_SIZE))
@@ -1708,7 +1830,7 @@ void CECMWSetLA(CEC_LA_ADDRESS* prLA)
 	{
 		cecMwTxMsg.blocks.operand[i] = msg->t_frame_info.aui1_operand[i];
 	}
-	
+
 	i4Ret = _CEC_TX_Enqueue(&cecMwTxMsg);
 	if (i4Ret == 0x01)
 	{
@@ -1727,23 +1849,29 @@ void CECMWSetLA(CEC_LA_ADDRESS* prLA)
 
 void hdmi_CECMWSetEnableCEC(unsigned char u1EnCec)
 {
-  HDMI_CEC_FUNC();
-  
-  hdmi_cec_init();
+	HDMI_CEC_FUNC();
 
-  if (u1EnCec == 1)
-  {
-    HDMI_CEC_LOG("UI ON \n");
-    hdmi_cec_on = 1;
-    cec_timer_wakeup();
-  }
-  else
-  {
-    HDMI_CEC_LOG("UI off \n");
-    hdmi_cec_on = 0;
-    DISABLE_RX_EN();
-    DISABLE_TX_EN();
-  }
+	if ((u1EnCec == 1) && (hdmi_cec_on == 0)) {
+		HDMI_CEC_LOG("[CEC] UI ON \n");
+		hdmi_cec_init();
+		hdmi_cec_on = 1;
+		cec_signal_enable();
+		cec_timer_wakeup();
+	} else if ((u1EnCec == 0) && (hdmi_cec_on == 1)) {
+		HDMI_CEC_LOG("[CEC]UI off \n");
+		cec_timer_sleep();
+		hdmi_cec_on = 0;
+		ENABLE_INT_OV(0);
+		ENABLE_INT_BR_RDY(0);
+		ENABLE_INT_HEADER_RDY(0);
+		DISABLE_RX_EN();
+		DISABLE_TX_EN();
+	} else {
+		if (u1EnCec == 0)
+			pr_info("[hdmi_cec] cec is already disabled\n");
+		if (u1EnCec == 1)
+			pr_info("[hdmi_cec] cec is already enabled\n");
+	}
 }
 
 void hdmi_NotifyApiCECAddress(CEC_ADDRESS *cecaddr)

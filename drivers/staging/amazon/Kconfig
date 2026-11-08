@@ -40,6 +40,11 @@ config AMAZON_SIGN_OF_LIFE_MTK
 	help
           enable the life cycle metrics to log device boot and shutdown information on MTK Platform
 
+config AMAZON_SIGN_OF_LIFE_MTK_DUMMYPMIC
+  bool "Amazon Sign of Life MTK platform implementation for Dummy PMIC"
+  help
+          enable the life cycle metrics to log device boot and shutdown information on MTK Platform without PMIC
+
 config AMAZON_POWEROFF_LOG
 	bool "Long press key power off log"
 	default N

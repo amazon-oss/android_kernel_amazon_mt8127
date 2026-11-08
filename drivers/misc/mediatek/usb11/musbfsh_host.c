@@ -46,6 +46,11 @@
 #include "musbfsh_host.h"
 #include "musbfsh_dma.h"
 #include "usb.h"
+//Rx DMA Mode1, ReqMode1
+#include "musbfsh_hsdma.h"
+#include <linux/time.h>  
+#define USB_HOST_RX_DMAMODE1
+//Rx DMA Mode1, ReqMode1
 
 #ifdef MTK_USB_RUNTIME_SUPPORT
 #include <cust_eint.h>
@@ -322,17 +327,26 @@ static inline void musbfsh_set_toggle(struct musbfsh_qh *qh, int is_in,
     int toggle;
 	
     INFO("musbfsh_set_toggle++:qh->hw_ep->epnum %d, qh->epnum %d\n",qh->hw_ep->epnum,qh->epnum);
+//Rx DMA Mode1, ReqMode1
+	INFO("qh->dev->toggle[%s]=0x%x\n", is_in?"IN":"OUT", qh->dev->toggle[!is_in]);
+//Rx DMA Mode1, ReqMode1
 
     toggle = usb_gettoggle (urb->dev, qh->epnum, !is_in);
     if(is_in){
         INFO("qh->dev->toggle[IN]=0x%x\n",qh->dev->toggle[!is_in]);
         musbfsh_writel(musbfsh->mregs, MUSBFSH_RXTOG, (((1<<epnum)<<16)|(toggle<<epnum)));
         musbfsh_writel(musbfsh->mregs, MUSBFSH_RXTOG, (toggle<<epnum));
+//Rx DMA Mode1, ReqMode1
+        INFO("toggle_IN=0x%x\n" ,musbfsh_readl(musbfsh->mregs,MUSBFSH_RXTOG));
+//Rx DMA Mode1, ReqMode1
         }
     else{
         INFO("qh->dev->toggle[OUT]=0x%x\n",qh->dev->toggle[!is_in]);
         musbfsh_writel(musbfsh->mregs, MUSBFSH_TXTOG, (((1<<epnum)<<16)|(toggle<<epnum)));
         musbfsh_writel(musbfsh->mregs, MUSBFSH_TXTOG, (toggle<<epnum));
+//Rx DMA Mode1, ReqMode1
+        INFO("toggle_OUT=0x%x\n" ,musbfsh_readl(musbfsh->mregs,MUSBFSH_TXTOG));
+//Rx DMA Mode1, ReqMode1
         }
 }
 
@@ -739,7 +753,10 @@ static void musbfsh_ep_program(struct musbfsh *musbfsh, u8 epnum,//the index num
 		/* protocol/endpoint/interval/NAKlimit */
 		if (epnum) {
 			musbfsh_writeb(epio, MUSBFSH_TXTYPE, qh->type_reg);//set the transfer type and endpoint number
+//Rx DMA Mode1, ReqMode1
+			//musbfsh_writew(epio, MUSBFSH_TXMAXP, hw_ep->max_packet_sz_tx);
 			musbfsh_writew(epio, MUSBFSH_TXMAXP, qh->maxpacket);
+//Rx DMA Mode1, ReqMode1
 			musbfsh_writeb(epio, MUSBFSH_TXINTERVAL, qh->intv_reg);
 		} else {//ep0
 			musbfsh_writeb(epio, MUSBFSH_NAKLIMIT0, qh->intv_reg);
@@ -786,12 +803,175 @@ static void musbfsh_ep_program(struct musbfsh *musbfsh, u8 epnum,//the index num
 			csr &= MUSBFSH_RXCSR_DISNYET;
 		}
 
+//Add for RxDMAMode1
+
+#ifdef USB_HOST_RX_DMAMODE1
+		if(dma_channel)
+		{
+			INFO("urb->transfer_flags = 0x%x, qh->maxpacket = %d\n", urb->transfer_flags, qh->maxpacket);
+
+			//Rx DMA Mode1, Req Mode0 (known size)
+			if(urb->transfer_flags & URB_RX_REQ_MODE0_ENABLE)	//URB_SHORT_NOT_OK
+			//if(urb->transfer_flags & URB_SHORT_NOT_OK)	//URB_SHORT_NOT_OK
+			{
+				//for full speed device, always stick in Rx DMA mode0
+				//multi Package && high speed device
+				if (qh->maxpacket==512 && ((urb->transfer_buffer_length - urb->actual_length) > qh->maxpacket))
+				{
+
+					void __iomem	*regs = musbfsh->mregs;//base address of usb mac
+					u16 		rx_count;
+					int 		ret, length;
+					dma_addr_t		buf;
+					u16 shortPkt;
+					u16 packetSize;
+
+					rx_count = musbfsh_readw(epio, MUSBFSH_RXCOUNT);
+
+					INFO("Using DMA epnum%d: is_out=%d, urb->actual_length = %d, urb->transfer_buffer_length = %d \n", epnum, is_out, urb->actual_length, urb->transfer_buffer_length);
+					/*INFO("RX%d count %d, buffer 0x%p len %d/%d\n",
+							epnum, rx_count,
+							urb->transfer_dma + urb->actual_length,
+							qh->offset,
+							urb->transfer_buffer_length);*/
+
+					length = rx_count;
+					buf = urb->transfer_dma + urb->actual_length;
+					//INFO("urb->transfer_flags = 0x%x, urb->transfer_buffer_length = %d, urb->actual_length = %d, qh->maxpacket= %d, rx_count= %d \n",urb->transfer_flags, urb->transfer_buffer_length, urb->actual_length, qh->maxpacket, rx_count);
+					/* because of the issue below, mode 1 will
+					* only rarely behave with correct semantics.
+					*/
+					dma_channel->desired_mode = 1;
+					length = urb->transfer_buffer_length;
+
+					//INFO("%dma_channel->desired_mode = %d, length = %d \n", dma_channel->desired_mode, length);
+
+
+					/* Disadvantage of using mode 1:
+					*	It's basically usable only for mass storage class; essentially all
+					*	other protocols also terminate transfers on short packets.
+					*
+					* Details:
+					*	An extra IN token is sent at the end of the transfer (due to AUTOREQ)
+					*	If you try to use mode 1 for (transfer_buffer_length - 512), and try
+					*	to use the extra IN token to grab the last packet using mode 0, then
+					*	the problem is that you cannot be sure when the device will send the
+					*	last packet and RxPktRdy set. Sometimes the packet is recd too soon
+					*	such that it gets lost when RxCSR is re-set at the end of the mode 1
+					*	transfer, while sometimes it is recd just a little late so that if you
+					*	try to configure for mode 0 soon after the mode 1 transfer is
+					*	completed, you will find rxcount 0. Okay, so you might think why not
+					*	wait for an interrupt when the pkt is recd. Well, you won't get any!
+					*/
+
+					csr = musbfsh_readw(epio, MUSBFSH_RXCSR);
+					csr &= ~MUSBFSH_RXCSR_H_REQPKT;
+
+					csr |= (MUSBFSH_RXCSR_H_AUTOREQ | MUSBFSH_RXCSR_AUTOCLEAR) & (~MUSBFSH_RXCSR_DMAMODE);	//req mode0
+
+					csr |= MUSBFSH_RXCSR_DMAENAB;
+
+					musbfsh_writew(epio, MUSBFSH_RXCSR,MUSBFSH_RXCSR_H_WZC_BITS | csr);
+
+					/* REVISIT if when actual_length != 0,
+					* transfer_buffer_length needs to be
+					* adjusted first...
+					*/
+					ret = dma_controller->channel_program(
+						dma_channel, qh->maxpacket,//dma is a dma channel, which is already allocated for the Rx EP in the func:musbfsh_ep_program
+						dma_channel->desired_mode, buf, length);
+
+					if (!ret) {
+						dma_controller->channel_release(dma_channel);
+						hw_ep->rx_channel = NULL;
+						dma_channel = NULL;
+						/* REVISIT reset CSR */
+					}
+
+					shortPkt = (length%qh->maxpacket)? 1 : 0;
+					packetSize = (length/qh->maxpacket) + shortPkt;
+
+					musbfsh_writew(regs, MUSBFSH_EP_RXPKTCOUNT+4*epnum,packetSize);
+
+				}
+
+				csr |= MUSBFSH_RXCSR_H_REQPKT;//ask packet from the device
+				INFO("Rx DMA Mode1, Req Mode0: RXCSR%d := %04x\n", epnum, csr);
+				musbfsh_writew(hw_ep->regs, MUSBFSH_RXCSR, csr);
+				csr = musbfsh_readw(hw_ep->regs, MUSBFSH_RXCSR);
+
+			}
+			//multipackage and unknown size
+			else if(urb->transfer_flags & URB_RX_REQ_MODE1_ENABLE)
+			{
+				/* do multi-packet setting, if data size is more than one packet and is the times of maxpacket size */
+				int length = urb->transfer_buffer_length - urb->actual_length;
+
+				int 		ret;
+				dma_addr_t		buf;
+				//u16 rxpktcnt = 0;
+
+				dma_channel->actual_len = 0;
+				qh->segsize = len;
+
+				buf = urb->transfer_dma + urb->actual_length;
+				/* multi-packet flag of dma */
+				dma_channel->desired_mode = 1;
+
+				csr = musbfsh_readw(hw_ep->regs, MUSBFSH_RXCSR);
+				csr &= ~MUSBFSH_RXCSR_H_REQPKT;
+				//csr |= (MUSBFSH_RXCSR_H_AUTOREQ | MUSBFSH_RXCSR_AUTOCLEAR) & (~MUSBFSH_RXCSR_DMAMODE);
+				csr |= (MUSBFSH_RXCSR_H_AUTOREQ | MUSBFSH_RXCSR_AUTOCLEAR) | MUSBFSH_RXCSR_DMAMODE;
+				csr |= MUSBFSH_RXCSR_DMAENAB;
+
+				musbfsh_writew(hw_ep->regs, MUSBFSH_RXCSR, MUSBFSH_RXCSR_H_WZC_BITS | csr);
+
+				ret = dma_controller->channel_program(
+					dma_channel, qh->maxpacket,//dma is a dma channel, which is already allocated for the Rx EP in the func:musbfsh_ep_program
+					dma_channel->desired_mode, buf, length);
+
+				if (!ret) 
+				{
+					dma_controller->channel_release(dma_channel);
+					hw_ep->rx_channel = NULL;
+					dma_channel = NULL;
+					/* REVISIT reset CSR */
+				}
+				csr |= MUSBFSH_RXCSR_H_REQPKT;//ask packet from the device
+				INFO("Rx DMA Mode1, Req Mode1: RXCSR%d := %04x\n", epnum, csr);
+				musbfsh_writew(hw_ep->regs, MUSBFSH_RXCSR, csr);
+				csr = musbfsh_readw(hw_ep->regs, MUSBFSH_RXCSR);
+			}
+			else
+			{
+				/* kick things off */
+				csr |= MUSBFSH_RXCSR_H_REQPKT;//ask packet from the device
+				INFO("Rx DMA Mode0: RXCSR%d := %04x\n", epnum, csr);
+				musbfsh_writew(hw_ep->regs, MUSBFSH_RXCSR, csr);
+				csr = musbfsh_readw(hw_ep->regs, MUSBFSH_RXCSR);
+			}
+		}
+		else
+		{
+			/* kick things off */
+			csr |= MUSBFSH_RXCSR_H_REQPKT;//ask packet from the device
+			INFO("PIO Mode: RXCSR%d := %04x\n", epnum, csr);
+			musbfsh_writew(hw_ep->regs, MUSBFSH_RXCSR, csr);
+			csr = musbfsh_readw(hw_ep->regs, MUSBFSH_RXCSR);
+		}
+//Add for RxDMAMode1
+#else
+//Add for RxDMAMode1
+
 		/* kick things off */
 		
 		csr |= MUSBFSH_RXCSR_H_REQPKT;//ask packet from the device
 		INFO("RXCSR%d := %04x\n", epnum, csr);
 		musbfsh_writew(hw_ep->regs, MUSBFSH_RXCSR, csr);
 		csr = musbfsh_readw(hw_ep->regs, MUSBFSH_RXCSR);
+//Add for RxDMAMode1
+#endif
+//Add for RxDMAMode1
 	}
 }
 
@@ -901,7 +1081,7 @@ irqreturn_t musbfsh_h_ep0_irq(struct musbfsh *musbfsh)
 			? musbfsh_readb(epio, MUSBFSH_COUNT0)
 			: 0;
 
-	WARNING( "<== csr0 %04x, qh %p, count %d, urb %p, stage %d\n",
+	INFO( "<== csr0 %04x, qh %p, count %d, urb %p, stage %d\n",
 		csr, qh, len, urb, musbfsh->ep0_stage);
 
 	/* if we just did status stage, we are done */
@@ -1437,6 +1617,56 @@ void musbfsh_host_rx(struct musbfsh *musbfsh, u8 epnum)
 
 	if (unlikely(dma_channel_status(dma) == MUSBFSH_DMA_STATUS_BUSY)) {
 		/* SHOULD NEVER HAPPEN ... but at least DaVinci has done it */
+//Add for RxDMAMode1
+#ifdef USB_HOST_RX_DMAMODE1
+		//Rx DMA Mode1, req mode1
+		if(rx_csr & MUSBFSH_RXCSR_DMAMODE)
+		{
+			struct musbfsh_dma_channel *musbfsh_channel;
+			u32 addr;
+			//u32 rx_count;
+
+			musbfsh_channel = (struct musbfsh_dma_channel *)dma->private_data;
+
+			addr = musbfsh_read_hsdma_addr(musbfsh->musbfsh_dma_controller->base, musbfsh_channel->idx); /* the register of address will increase with the data transfer. */
+			dma->actual_len = addr - musbfsh_channel->start_addr;
+
+	#if 0
+			rx_count = musbfsh_readw(epio, MUSBFSH_RXCOUNT);
+			printk("@@@@ %s(%d)+:  epnum(%d), rx_count(%d), dam_actual_len(%d)\n", __func__, __LINE__, 
+				epnum, rx_count, dma->actual_len);
+	#endif
+
+			urb->actual_length += dma->actual_len;
+			qh->offset += dma->actual_len;
+
+			/* disable dma */
+	#if 0
+			musbfsh->dma_controller->channel_abort(dma);
+	#else
+			musbfsh_writew(mbase, MUSBFSH_HSDMA_CHANNEL_OFFSET(musbfsh_channel->idx 
+				, MUSBFSH_HSDMA_CONTROL), 0);
+			musbfsh_write_hsdma_addr(musbfsh->musbfsh_dma_controller->base , musbfsh_channel->idx, 0);
+			musbfsh_write_hsdma_count(musbfsh->musbfsh_dma_controller->base , musbfsh_channel->idx, 0);
+			dma->status = MUSBFSH_DMA_STATUS_FREE;
+	#endif
+
+			goto inprogress;
+		}
+		//Rx DMA Mode1, req mode0
+		else
+		{
+			//struct dma_controller *c;
+			xfer_len = dma->actual_len;
+
+			/*c = musbfsh->dma_controller;
+			c->channel_log(dma);
+
+			INFO("urb->actual_length = %d, xfer_len = %d, urb->transfer_buffer_length = %d, current csr = 0x%x, rxcount = 0x%x\n", urb->actual_length, xfer_len, urb->transfer_buffer_length, musbfsh_readw(epio, MUSBFSH_RXCSR), musbfsh_readw(epio, MUSBFSH_RXCOUNT)); 
+			*/ 
+		}
+#endif
+//Add for RxDMAMode1
 		ERR("RX%d dma busy, csr %04x\n", epnum, rx_csr);
 		goto finish;
 	}
@@ -1450,11 +1680,22 @@ void musbfsh_host_rx(struct musbfsh *musbfsh, u8 epnum)
 
 	if (dma && (rx_csr & MUSBFSH_RXCSR_DMAENAB)) {//here rx_csr & MUSBFSH_RXCSR_DMAENAB is very very important!
 		xfer_len = dma->actual_len;
-
+//Add for RxDMAMode1
+        #ifndef USB_HOST_RX_DMAMODE1
+//Add for RxDMAMode1
 		val &= ~(MUSBFSH_RXCSR_DMAENAB
 			| MUSBFSH_RXCSR_H_AUTOREQ
 			| MUSBFSH_RXCSR_AUTOCLEAR
 			| MUSBFSH_RXCSR_RXPKTRDY);//should be clear!
+//Add for RxDMAMode1
+#else
+		val &= ~(MUSBFSH_RXCSR_DMAENAB
+			| MUSBFSH_RXCSR_H_AUTOREQ
+			| MUSBFSH_RXCSR_AUTOCLEAR
+			| MUSBFSH_RXCSR_RXPKTRDY
+			| MUSBFSH_RXCSR_DMAMODE);//should be clear!
+#endif
+//Add for RxDMAMode1
 		musbfsh_writew(hw_ep->regs, MUSBFSH_RXCSR, val);
 
 
@@ -1475,7 +1716,12 @@ void musbfsh_host_rx(struct musbfsh *musbfsh, u8 epnum)
 		done ? "off" : "reset",
 		musbfsh_readw(epio, MUSBFSH_RXCSR),
 		musbfsh_readw(epio, MUSBFSH_RXCOUNT));
-	} else if (urb->status == -EINPROGRESS) {
+} else if (urb->status == -EINPROGRESS) {
+//Rx DMA Mode1, ReqMode1
+#ifdef USB_HOST_RX_DMAMODE1
+inprogress:
+#endif
+//Rx DMA Mode1, ReqMode1
 		/* if no errors, be sure a packet is ready for unloading */
 		if (unlikely(!(rx_csr & MUSBFSH_RXCSR_RXPKTRDY))) {
 			status = -EPROTO;

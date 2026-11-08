@@ -4,6 +4,10 @@
 #
 include $(srctree)/drivers/misc/mediatek/Makefile.custom
 
+ifeq ($(CONFIG_MTK_AOSP_TVSTICK_SUPPORT), y)
+ccflags-y += -DMTK_AOSP_TVSTICK_SUPPORT
+endif
+
 ifeq ($(CONFIG_MTK_INTERNAL_HDMI_SUPPORT), y)
 ccflags-y += -DMTK_INTERNAL_HDMI_SUPPORT
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/ext_disp/$(CONFIG_MTK_PLATFORM)
@@ -23,6 +27,18 @@ endif
 ifeq ($(strip $(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)),y)
 ccflags-y += -I$(srctree)/include -I$(srctree)/include/trustzone
 ccflags-y += -DMTK_SEC_VIDEO_PATH_SUPPORT
+endif
+
+ifeq ($(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT),y)
+ccflags-y += -DMTK_IN_HOUSE_TEE_SUPPORT
+endif
+
+ifeq ($(CONFIG_MTK_HDMI_HDCP_SUPPORT), y)
+ccflags-y += -DMTK_HDMI_HDCP_SUPPORT
+endif
+
+ifeq ($(CONFIG_MTK_DRM_KEY_MNG_SUPPORT), y)
+ccflags-y += -DMTK_DRM_KEY_MNG_SUPPORT
 endif
 
 obj-y := hdmitx.o debug.o  hdmitx_test.o

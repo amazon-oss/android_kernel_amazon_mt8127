@@ -26,11 +26,20 @@ ifneq ($(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT),)
 ccflags-y += -I$(srctree)/include/trustzone/
 endif
 
-obj-y := hdmi_drv.o hdmi_ctrl.o hdmiavd.o hdmicec.o hdmiddc.o hdmiedid.o hdmihdcp.o hdmicmd.o hdmictrl.o 
+obj-y := hdmi_drv.o hdmi_ctrl.o hdmiavd.o hdmicec.o hdmiddc.o hdmiedid.o hdmihdcp.o hdmicmd.o hdmictrl.o hdmi_debug.o
 
 ifeq ($(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT),y)
+ccflags-y += -DMTK_IN_HOUSE_TEE_SUPPORT
 ccflags-y += -I$(srctree)/include/trustzone/
 obj-y += hdmi_ca.o
+endif
+
+ifeq ($(CONFIG_MTK_HDMI_HDCP_SUPPORT), y)
+ccflags-y += -DMTK_HDMI_HDCP_SUPPORT
+endif
+
+ifeq ($(CONFIG_MTK_DRM_KEY_MNG_SUPPORT), y)
+ccflags-y += -DMTK_DRM_KEY_MNG_SUPPORT
 endif
 
 endif

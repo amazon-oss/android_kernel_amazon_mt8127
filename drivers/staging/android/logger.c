@@ -5,6 +5,8 @@
  *
  * Copyright (C) 2007-2008 Google, Inc.
  *
+ * Portion copyright 2023 Amazon Technologies, Inc. All Rights Reserved
+ *
  * Robert Love <rlove@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -39,6 +41,12 @@
 
 static int metrics_init;
 #define VITAL_ENTRY_MAX_PAYLOAD 512
+#endif
+
+/* Tune below values as per your Kernel settings and needs */
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+#define AMAZON_MINERVA_MAX_PAYLOAD 768
+#define AMAZON_MINERVA_META_SIZE 512
 #endif
 
 static int s_fake_read;
@@ -945,7 +953,21 @@ static const struct file_operations logger_fops = {
 	.release = logger_release,
 };
 
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#if defined (CONFIG_AMAZON_METRICS_LOG) || defined (CONFIG_AMAZON_MINERVA_METRICS_LOG)
+static struct logger_log *get_log_from_name(char *name)
+{
+	struct logger_log *log;
+
+	if (0 == name)
+		return NULL;
+
+	list_for_each_entry(log, &log_list, logs)
+	if (0 == strcmp(log->misc.name, name))
+		return log;
+
+	return NULL;
+}
+
 static void logger_kernel_write(struct logger_log *log, const struct iovec *iov, unsigned long nr_segs)
 {
 	struct logger_entry header;
@@ -1020,7 +1042,7 @@ void log_to_metrics(enum android_log_priority priority,
 	if (metrics_init != 0 && log_msg != NULL) {
 		struct iovec vec[3];
 
-		if (domain == NULL)
+		if (!domain)
 			domain = "kernel";
 
 		vec[0].iov_base = (unsigned char *)&priority;
@@ -1035,18 +1057,16 @@ void log_to_metrics(enum android_log_priority priority,
 		logger_kernel_write(log, vec, 3);
 	}
 }
+#endif /* (CONFIG_AMAZON_METRICS_LOG) || (CONFIG_AMAZON_MINERVA_METRICS_LOG) */
 
-void log_to_vitals(enum android_log_priority priority,
-	const char *domain, const char *log_msg)
+#ifdef CONFIG_AMAZON_LOG
+void log_to_amzmain(enum android_log_priority priority,
+		const char *domain,
+		const char *log_msg)
 {
 	static struct logger_log *log;
 
-	if (log == NULL) {
-		struct logger_log *t;
-		list_for_each_entry(t, &log_list, logs)
-			if (strncmp(t->misc.name, LOGGER_LOG_AMAZON_VITALS, strlen(LOGGER_LOG_AMAZON_VITALS)) == 0)
-				log = t;
-	}
+	log = get_log_from_name(LOGGER_LOG_AMAZON_MAIN);
 
 	if (metrics_init != 0 && log_msg != NULL) {
 		struct iovec vec[3];
@@ -1066,6 +1086,42 @@ void log_to_vitals(enum android_log_priority priority,
 		logger_kernel_write(log, vec, 3);
 	}
 }
+#endif /* CONFIG_AMAZON_LOG */
+
+#if defined (CONFIG_AMAZON_METRICS_LOG) || defined (CONFIG_AMAZON_MINERVA_METRICS_LOG)
+void log_to_vitals(enum android_log_priority priority,
+	const char *domain, const char *log_msg)
+{
+	static struct logger_log *log;
+
+	if (log == NULL) {
+		struct logger_log *t;
+		list_for_each_entry(t, &log_list, logs)
+			if (strncmp(t->misc.name, LOGGER_LOG_AMAZON_VITALS, strlen(LOGGER_LOG_AMAZON_VITALS)) == 0)
+				log = t;
+	}
+
+	if (metrics_init != 0 && log_msg != NULL) {
+		struct iovec vec[3];
+
+		if (!domain)
+			domain = "kernel";
+
+		vec[0].iov_base = (unsigned char *)&priority;
+		vec[0].iov_len  = 1;
+
+		vec[1].iov_base = (void *)domain;
+		vec[1].iov_len  = strlen(domain) + 1;
+
+		vec[2].iov_base = (void *)log_msg;
+		vec[2].iov_len  = strlen(log_msg) + 1;
+
+		logger_kernel_write(log, vec, 3);
+	}
+}
+#endif
+
+#ifdef CONFIG_AMAZON_METRICS_LOG
 void log_counter_to_vitals(enum android_log_priority priority,
 			const char *domain, const char *program,
 			const char *source, const char *key,
@@ -1120,7 +1176,172 @@ void log_timer_to_vitals(enum android_log_priority priority,
 	}
 	log_to_vitals(priority, domain, str);
 }
-#endif
+#endif /* CONFIG_AMAZON_METRICS_LOG */
+
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+/**
+ * log_counter_to_vitals_v2 - add a counter message to vitals log buffer
+ * the max buffer size is total buffer size send to userspace
+ * @priority:	the Android priority of the message
+ * @domain:	the domain of this message belong to
+ * @group_id:	the group id
+ * @schema_id:	the schema id
+ * @program:	the vital record category name
+ * @source:	the vital name
+ * @key:	the counter name
+ * @counter_value: the counter value
+ * @metadata:	the metadata info
+ * @type:	the type of vitals
+ * @dimensions  the dimensions
+ * @annotations the annotations
+ */
+void log_counter_to_vitals_v2(enum android_log_priority priority,
+			const char *group_id, const char *schema_id,
+			const char *domain, const char *program,
+			const char *source, const char *key,
+			long counter_value, const char *unit,
+			const char *metadata, vitals_type type,
+			const char *dimensions, const char *annotations)
+{
+	char str[AMAZON_MINERVA_MAX_PAYLOAD];
+	char metadata_msg[AMAZON_MINERVA_META_SIZE];
+	size_t metadata_length = 0;
+
+	/*
+	 * metadata format metadata=[(metadata)]!{
+	 * "d"#{"groupId"$"(group_id)"#"schemaId"$"(schema_id)"
+	 * [(dimensions)]}["m"#{(annotations)}]}
+	 */
+	if (metadata && strlen(metadata))
+		metadata_length += snprintf(metadata_msg,
+			AMAZON_MINERVA_META_SIZE, ",metadata=%s!{", metadata);
+	else
+		metadata_length += snprintf(metadata_msg,
+			AMAZON_MINERVA_META_SIZE, ",metadata=!{");
+
+
+	if (dimensions && strlen(dimensions))
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			"\"d\"#{\"groupId\"#\"%s\"$\"schemaId\"#\"%s\"$%s}",
+			group_id, schema_id, dimensions);
+	else
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			"\"d\"#{\"groupId\"#\"%s\"$\"schemaId\"#\"%s\"}",
+			group_id, schema_id);
+
+	if (annotations && strlen(annotations))
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			"$\"m\"#{%s}};DV;1", annotations);
+	else
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			"};DV;1");
+
+	/* format (program):(source):type=(type);DV;1,
+	 * [key=(key);DV;1,]counter=(counter_value);CT;1,
+	 * unit=(unit);DV;1,metadata=(metadata_msg);DV;1:HI
+	 */
+	if (key) {
+		snprintf(str, AMAZON_MINERVA_MAX_PAYLOAD,
+			"%s:%s:type=%d;DV;1,key=%s;DV;1,"
+			"counter=%ld;CT;1,unit=%s;DV;1%s:HI",
+			program, source, type,
+			key, counter_value, unit,
+			metadata_msg);
+	} else {
+		snprintf(str, AMAZON_MINERVA_MAX_PAYLOAD,
+			"%s:%s:type=%d;DV;1,"
+			"counter=%ld;CT;1,unit=%s;DV;1%s:HI",
+			program, source, type,
+			counter_value, unit,
+			metadata_msg);
+	}
+	log_to_vitals(priority, domain, str);
+}
+EXPORT_SYMBOL(log_counter_to_vitals_v2);
+
+/**
+ * log_timer_to_vitals_v2 - add a timer message to vitals log buffer
+ * the max buffer size is the total buffersize send to userspace
+ * @priority:	the Android priority of the message
+ * @domain:	the domain of this message belong to
+ * @group_id:	the group id
+ * @schema_id:	the schema_id
+ * @program:	the vital record category name
+ * @source:	the vital name
+ * @key:	the timer name
+ * @timer_value:the timer value
+ * @unit:	unit for the timer
+ * @type:	the type of vitals
+ * @dimensions  the dimensions
+ * @annotations the annotations
+ */
+void log_timer_to_vitals_v2(enum android_log_priority priority,
+			const char *group_id, const char *schema_id,
+			const char *domain, const char *program,
+			const char *source, const char *key,
+			long timer_value, const char *unit, vitals_type type,
+			const char *dimensions, const char *annotations)
+{
+	char str[AMAZON_MINERVA_MAX_PAYLOAD];
+	char metadata_msg[AMAZON_MINERVA_META_SIZE];
+	size_t metadata_length = 0;
+
+	/*
+	 * metadata format metadata=!{"d"#{
+	 * "groupId"$"(group_id)"#"schemaId"$"(schema_id)"
+	 * [(dimensions)]}["m"#{(annotations)}]}
+	 */
+	if (dimensions && strlen(dimensions))
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			",metadata=!{"
+			"\"d\"#{\"groupId\"#\"%s\"$\"schemaId\"#\"%s\"$%s}",
+			group_id, schema_id, dimensions);
+	else
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			",metadata=!{"
+			"\"d\"#{\"groupId\"#\"%s\"$\"schemaId\"#\"%s\"}",
+			group_id, schema_id);
+
+	if (annotations && strlen(annotations))
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			"$\"m\"#{%s}};DV;1", annotations);
+	else
+		metadata_length += snprintf(&metadata_msg[metadata_length],
+			AMAZON_MINERVA_META_SIZE - metadata_length,
+			"};DV;1");
+
+	/*
+	 * format (program):(source):type=(type);DV;1,
+	 * [key=(key);DV;1,]timer=(timer_value);TI;1,
+	 * unit=(unit);DV;1,metadata=(metadata_msg);DV;1:HI
+	 */
+	if (key) {
+		snprintf(str, AMAZON_MINERVA_MAX_PAYLOAD,
+			"%s:%s:type=%d;DV;1,key=%s;DV;1,"
+			"timer=%ld;TI;1,unit=%s;DV;1%s:HI",
+			program, source, type,
+			key, timer_value, unit,
+			metadata_msg);
+	} else {
+		snprintf(str, AMAZON_MINERVA_MAX_PAYLOAD,
+			"%s:%s:type=%d;DV;1,"
+			"timer=%ld;TI;1,unit=%s;DV;1%s:HI",
+			program, source, type,
+			timer_value, unit,
+			metadata_msg);
+	}
+
+	log_to_vitals(priority, domain, str);
+}
+EXPORT_SYMBOL(log_timer_to_vitals_v2);
+#endif /* CONFIG_AMAZON_MINERVA_METRICS_LOG */
 
 /*
  * Log size must must be a power of two, and greater than

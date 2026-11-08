@@ -135,6 +135,8 @@ static DEFINE_MUTEX(gIon_cache_sync_user_lock);
 
 static long ion_sys_cache_sync(struct ion_client *client, ion_sys_cache_sync_param_t* pParam, int from_kernel)
 {
+    int ret = 0;
+
     ION_FUNC_ENTER;
     if (pParam->sync_type < ION_CACHE_CLEAN_ALL)
     {
@@ -182,9 +184,8 @@ static long ion_sys_cache_sync(struct ion_client *client, ion_sys_cache_sync_par
 
 			if (!cache_map_vm_struct) {
 				IONMSG("error: cache_map_vm_struct is NULL, no vmalloc area\n");
-			    mutex_unlock(&gIon_cache_sync_user_lock);
-        		mutex_unlock(&client->lock);
-				return -ENOMEM;
+			    ret = -ENOMEM;
+				goto out;
 			}
 
 			for_each_sg(table->sgl, sg, table->nents, i)
@@ -197,9 +198,8 @@ static long ion_sys_cache_sync(struct ion_client *client, ion_sys_cache_sync_par
 
 					if (IS_ERR_OR_NULL((void*) start)) {
 						IONMSG("cannot do cache sync: ret=%lu\n", start);
-						mutex_unlock(&gIon_cache_sync_user_lock);
-						mutex_unlock(&client->lock);
-						return -EFAULT;
+						ret = -EFAULT;
+						goto out;
 					}
 
 					__ion_cache_sync_kernel(start, PAGE_SIZE, pParam->sync_type);
@@ -207,12 +207,19 @@ static long ion_sys_cache_sync(struct ion_client *client, ion_sys_cache_sync_par
 					ion_cache_unmap_page_va(start);
 				}
 			}
-
+out:
 		    mutex_unlock(&gIon_cache_sync_user_lock);
         	mutex_unlock(&client->lock);
         }
         else
         {
+#ifdef CONFIG_ARCH_MT8127_TANK
+            if (!from_kernel) {
+				IONMSG("unsupported for userspace, need kernel va\n");
+				ion_drv_put_kernel_handle(kernel_handle);
+				return -EINVAL;
+            }
+#endif
             start = (unsigned long)pParam->va;
             size = pParam->size;
 
@@ -303,7 +310,7 @@ static long ion_sys_cache_sync(struct ion_client *client, ion_sys_cache_sync_par
         }
     }
     ION_FUNC_LEAVE;
-    return 0;
+    return ret;
 }
 
 
@@ -329,6 +336,9 @@ static long ion_sys_ioctl(struct ion_client *client, unsigned int cmd, unsigned 
         Param = *(ion_sys_data_t*) arg;
     else
         ret_copy = copy_from_user(&Param, (void __user *)arg, sizeof(ion_sys_data_t));
+
+    if (ret_copy)
+        return -EINVAL;
 
     switch (Param.sys_cmd)
     {
@@ -357,9 +367,11 @@ static long ion_sys_ioctl(struct ion_client *client, unsigned int cmd, unsigned 
             ion_drv_put_kernel_handle(kernel_handle);
         }
         break;
+#ifndef CONFIG_ARCH_MT8127_TANK
     case ION_SYS_GET_CLIENT:
         Param.get_client_param.client = (unsigned long) client;
         break;
+#endif
     case ION_SYS_SET_CLIENT_NAME:
         ion_sys_copy_client_name(Param.client_name_param.name, client->dbg_name);
         break;
@@ -481,6 +493,10 @@ static long ion_sys_ioctl(struct ion_client *client, unsigned int cmd, unsigned 
         *(ion_sys_data_t*)arg = Param;
     else
         ret_copy = copy_to_user((void __user *)arg, &Param, sizeof(ion_sys_data_t));
+
+    if (ret_copy)
+        return -EINVAL;
+
     ION_FUNC_LEAVE;
     return ret;
 }

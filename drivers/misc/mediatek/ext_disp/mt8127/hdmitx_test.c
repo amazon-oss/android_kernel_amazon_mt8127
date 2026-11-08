@@ -91,7 +91,7 @@
 #include "dpi_reg.h"
 #include "mach/eint.h"
 #include "mach/irqs.h"
-#include "hdmitx.h"
+#include <linux/hdmitx.h>
 
 #include <linux/switch.h>
 

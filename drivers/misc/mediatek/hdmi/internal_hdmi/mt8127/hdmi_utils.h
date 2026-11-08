@@ -1,5 +1,5 @@
 
-#include "hdmitx.h"
+#include <linux/hdmitx.h>
 
 #ifndef HDMI_UTILS_H
 #define HDMI_UTILS_H
@@ -24,7 +24,7 @@
     do { \
         {printk("[hdmi]#%d ", __LINE__); printk(fmt, ##arg);} \
     }while (0)
-    
+
 static char *_hdmi_ioctl_spy(unsigned int cmd)
 {
     switch (cmd)
@@ -91,7 +91,7 @@ static char *_hdmi_ioctl_spy(unsigned int cmd)
 
         case MTK_HDMI_FACTORY_MODE_ENABLE:
             return "MTK_HDMI_FACTORY_MODE_ENABLE";
-			
+
 #if defined(CONFIG_MTK_INTERNAL_HDMI_SUPPORT) ||defined(MTK_MT8193_HDMI_SUPPORT)
 
         case MTK_HDMI_WRITE_DEV:
@@ -145,8 +145,27 @@ static char *_hdmi_ioctl_spy(unsigned int cmd)
         case MTK_HDMI_GET_SLTDATA:
             return "MTK_HDMI_GET_SLTDATA";
 
+	case MTK_HDMI_CEC_USR_CMD:
+		return "MTK_HDMI_CEC_USR_CMD";
+
         case MTK_HDMI_COLOR_DEEP:
             return "MTK_HDMI_COLOR_DEEP";
+
+        case MTK_HDMI_HDCP_LEVEL:
+            return "MTK_HDMI_HDCP_LEVEL";
+
+        case MTK_HDMI_HDCP_STATUS:
+            return "MTK_HDMI_HDCP_STATUS";
+
+        case MTK_HDMI_HDCP_REPEATER_MODE:
+            return "MTK_HDMI_HDCP_REPEATER_MODE";
+
+        case MTK_HDMI_HDCP_AUTH_STATUS:
+            return "MTK_HDMI_HDCP_AUTH_STATUS";
+
+        case MTK_HDMI_HPD_ONOFF:
+            return "MTK_HDMI_HPD_ONOFF";
+
 #elif defined(MTK_INTERNAL_MHL_SUPPORT)
         case MTK_HDMI_READ:
             return "MTK_HDMI_READ";
@@ -179,11 +198,11 @@ static char *_hdmi_ioctl_spy(unsigned int cmd)
 	case MTK_HDMI_COLOR_DEEP:
 		return "MTK_HDMI_COLOR_DEEP";
 	case MTK_HDMI_HDCP_KEY:
-            return "MTK_HDMI_HDCP_KEY";	
+            return "MTK_HDMI_HDCP_KEY";
 #endif
 #if defined(CONFIG_MTK_INTERNAL_HDMI_SUPPORT) ||defined(MTK_INTERNAL_MHL_SUPPORT)
         case MTK_HDMI_AUDIO_SETTING:
-	        return "MTK_HDMI_AUDIO_SETTING";	
+	        return "MTK_HDMI_AUDIO_SETTING";
 #endif
 
         case MTK_HDMI_GET_DEV_INFO:

@@ -31,7 +31,11 @@
 #include <linux/thermal_framework.h>
 #include <linux/platform_data/mtk_thermal.h>
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define MTKTSABB_TEMP_CRIT 120000 /* 120.000 degree Celsius */
+#else
 #define MTKTSABB_TEMP_CRIT 118000 /* 120.000 degree Celsius */
+#endif
 static DEFINE_MUTEX(therm_lock);
 
 struct mtktsabb_thermal_zone {

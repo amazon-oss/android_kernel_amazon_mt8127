@@ -52,6 +52,9 @@ extern KREE_SESSION_HANDLE ddp_mem_session_handle(void);
 #endif
 
 #define DISP_INDEX_OFFSET 0xa000
+#ifdef MTK_AOSP_TVSTICK_SUPPORT
+extern unsigned int color_range_full2limit_enable;
+#endif
 
 extern BOOL DISP_IsDecoupleMode(void);
 
@@ -129,6 +132,42 @@ int RDMAReset(unsigned idx) {
 
     return 0;
 }
+
+#ifdef MTK_AOSP_TVSTICK_SUPPORT
+int RDMALimit(unsigned idx)
+{
+    if (color_range_full2limit_enable)
+    {
+        printk("color rang full to limit enable\n");
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 1);
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_EXT_MTX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 1);
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_INT_MTX_SEL, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0x6);
+        // set color conversion matrix
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_00, coef_rdma_full_2_limit[0][0] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_01, coef_rdma_full_2_limit[0][1] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_02, coef_rdma_full_2_limit[0][2] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_10, coef_rdma_full_2_limit[1][0] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_11, coef_rdma_full_2_limit[1][1] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_12, coef_rdma_full_2_limit[1][2] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_20, coef_rdma_full_2_limit[2][0] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_21, coef_rdma_full_2_limit[2][1] );
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_22, coef_rdma_full_2_limit[2][2] );
+
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD0, coef_rdma_full_2_limit[3][0]);
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD1, coef_rdma_full_2_limit[3][1]);
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD2, coef_rdma_full_2_limit[3][2]);
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD0, coef_rdma_full_2_limit[4][0]);
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD1, coef_rdma_full_2_limit[4][1]);
+        DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD2, coef_rdma_full_2_limit[4][2]);
+    }
+    else {
+        printk("color rang full to limit disable\n");
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_EXT_MTX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_INT_MTX_SEL, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
+    }
+}
+#endif
 
 extern unsigned int gUltraLevel;
 extern unsigned int gEnableUltra;
@@ -235,6 +274,11 @@ int RDMAConfig_(unsigned idx,
         break;
     case RDMA_INPUT_FORMAT_ARGB:
         bpp = 4;
+        break;
+    case RDMA_INPUT_FORMAT_BGRA:
+        bpp = 4;
+        inputFormat = RDMA_INPUT_FORMAT_ARGB;
+        isByteSwap = 1;
         break;
     // More color format support
     case RDMA_INPUT_FORMAT_BGR565:
@@ -369,8 +413,38 @@ int RDMAConfig_(unsigned idx,
     	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD0, coef_rdma_601_r2y[4][0]);
     	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD1, coef_rdma_601_r2y[4][1]);
     	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD2, coef_rdma_601_r2y[4][2]);
-    } else {
+    }
+#ifdef MTK_AOSP_TVSTICK_SUPPORT
+    else if (color_range_full2limit_enable)
+    {
+    	printk("color rang full to limit enable\n");
+    	DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 1);
+    	DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_EXT_MTX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 1);
+    	DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_INT_MTX_SEL, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0x6);
+    	// set color conversion matrix
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_00, coef_rdma_full_2_limit[0][0] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_01, coef_rdma_full_2_limit[0][1] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_02, coef_rdma_full_2_limit[0][2] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_10, coef_rdma_full_2_limit[1][0] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_11, coef_rdma_full_2_limit[1][1] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_12, coef_rdma_full_2_limit[1][2] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_20, coef_rdma_full_2_limit[2][0] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_21, coef_rdma_full_2_limit[2][1] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_22, coef_rdma_full_2_limit[2][2] );
+
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD0, coef_rdma_full_2_limit[3][0]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD1, coef_rdma_full_2_limit[3][1]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD2, coef_rdma_full_2_limit[3][2]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD0, coef_rdma_full_2_limit[4][0]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD1, coef_rdma_full_2_limit[4][1]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD2, coef_rdma_full_2_limit[4][2]);
+    }
+#endif
+    else {
         DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
+#ifdef MTK_AOSP_TVSTICK_SUPPORT
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_EXT_MTX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
+#endif
         DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_INT_MTX_SEL, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
     }
 
@@ -503,6 +577,11 @@ int RDMAConfig(unsigned idx,
     case RDMA_INPUT_FORMAT_ARGB:
         bpp = 4;
         break;
+    case RDMA_INPUT_FORMAT_BGRA:
+        bpp = 4;
+        inputFormat = RDMA_INPUT_FORMAT_ARGB;
+        isByteSwap = 1;
+        break;
     // More color format support
     case RDMA_INPUT_FORMAT_BGR565:
     	inputFormat -= RDMA_COLOR_BASE;
@@ -636,8 +715,38 @@ int RDMAConfig(unsigned idx,
     	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD0, coef_rdma_601_r2y[4][0]);
     	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD1, coef_rdma_601_r2y[4][1]);
     	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD2, coef_rdma_601_r2y[4][2]);
-    } else {
+    }
+#ifdef MTK_AOSP_TVSTICK_SUPPORT
+    else if (color_range_full2limit_enable)
+    {
+    	printk("color rang full to limit enable\n");
+    	DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 1);
+    	DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_EXT_MTX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 1);
+    	DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_INT_MTX_SEL, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0x6);
+    	// set color conversion matrix
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_00, coef_rdma_full_2_limit[0][0] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_01, coef_rdma_full_2_limit[0][1] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_02, coef_rdma_full_2_limit[0][2] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_10, coef_rdma_full_2_limit[1][0] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_11, coef_rdma_full_2_limit[1][1] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_12, coef_rdma_full_2_limit[1][2] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_20, coef_rdma_full_2_limit[2][0] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_21, coef_rdma_full_2_limit[2][1] );
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_22, coef_rdma_full_2_limit[2][2] );
+
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD0, coef_rdma_full_2_limit[3][0]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD1, coef_rdma_full_2_limit[3][1]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_PRE_ADD2, coef_rdma_full_2_limit[3][2]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD0, coef_rdma_full_2_limit[4][0]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD1, coef_rdma_full_2_limit[4][1]);
+    	DISP_REG_SET(idx*DISP_INDEX_OFFSET+DISP_REG_RDMA_CF_POST_ADD2, coef_rdma_full_2_limit[4][2]);
+    }
+#endif
+    else {
         DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
+#ifdef MTK_AOSP_TVSTICK_SUPPORT
+        DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_EXT_MTX_ENABLE, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
+#endif
         DISP_REG_SET_FIELD(SIZE_CON_0_FLD_MATRIX_INT_MTX_SEL, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, 0);
     }
 
@@ -690,6 +799,7 @@ void RDMASetOutputFrameSize(unsigned int idx, unsigned int width,unsigned int he
 {
     DISP_REG_SET_FIELD(SIZE_CON_0_FLD_OUTPUT_FRAME_WIDTH, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_0, width);
     DISP_REG_SET_FIELD(SIZE_CON_1_FLD_OUTPUT_FRAME_HEIGHT, idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_SIZE_CON_1, height);
+    DISP_REG_SET(idx * DISP_INDEX_OFFSET + DISP_REG_RDMA_MEM_SRC_PITCH, width*3);
 
 }
 
@@ -726,6 +836,10 @@ enum RDMA_INPUT_FORMAT rdma_fmt_convert(DpColorFormat fmt)
    case eXABGR8888:
 	   rdma_fmt = RDMA_INPUT_FORMAT_ABGR;
 	   break;
+
+   case eBGRA8888:
+       rdma_fmt = RDMA_INPUT_FORMAT_BGRA;
+       break;
 
    case eYUY2:
 	   rdma_fmt = RDMA_INPUT_FORMAT_YUYV;

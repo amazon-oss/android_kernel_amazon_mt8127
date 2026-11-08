@@ -18,6 +18,9 @@ extern void mt65xx_eint_registration(kal_uint8 eintno, kal_bool Dbounce_En,
                                      kal_bool auto_umask);
 #endif
 
+extern void enable_phy_clock(bool enable);
+extern void enable_peri_usb_clock(bool enable);
+
 //#define IC_USB
 
 //Level 1 interrupts:

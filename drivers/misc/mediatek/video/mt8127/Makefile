@@ -31,7 +31,9 @@ obj-y += \
 
 ccflags-y += -DMTK_OVERLAY_ENGINE_SUPPORT
 
-
+ifeq ($(CONFIG_MTK_AOSP_TVSTICK_SUPPORT), y)
+ccflags-y += -DMTK_AOSP_TVSTICK_SUPPORT
+endif
 
 ifeq ($(strip $(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)),y)
 ccflags-y += -I$(srctree)/include -I$(srctree)/include/trustzone

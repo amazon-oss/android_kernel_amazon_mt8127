@@ -2,6 +2,7 @@
 #include "disp_ovl_engine_hw.h"
 #include "ddp_reg.h"
 #include "debug.h"
+#include <mach/mt_boot.h>
 
 #ifdef DISP_OVL_ENGINE_HW_SUPPORT
 #include <linux/vmalloc.h>
@@ -21,12 +22,15 @@
 
 // for MTK_HDMI_MAIN_PATH
 #include "disp_drv_platform.h"
+#if MTK_TVSTICK_HDMI_PATH
+#include <linux/hdmitx.h>
+#endif
 
 // Parameter
 static DISP_OVL_ENGINE_INSTANCE disp_ovl_engine_params;
 extern LCM_PARAMS *lcm_params;
 
-
+extern void _disp_path_ovl_rdma_callback(unsigned int param);
 // Irq callback
 void (*disp_ovl_engine_hw_irq_callback)(unsigned int param) = NULL;
 void disp_ovl_engine_hw_ovl_wdma_irq_handler(unsigned int param);
@@ -297,6 +301,24 @@ void disp_ovl_engine_direct_link_overlay(void)
 	}
     
     disp_path_register_ovl_rdma_callback(disp_ovl_engine_hw_ovl_rdma_irq_handler,0);
+    #if MTK_DISP_DIRECTLINK
+    disp_register_irq(DISP_MODULE_RDMA0, _disp_path_ovl_rdma_callback);
+
+    if (get_boot_mode() == FACTORY_BOOT || get_boot_mode() == RECOVERY_BOOT) {
+        printk("disp_ovl_engine_direct_link_overlay factory mode, need config mutex\n");
+        struct disp_path_config_struct config = {0};
+        config.srcModule = DISP_MODULE_OVL;
+        config.dstModule = DISP_MODULE_DPI1;
+
+        DISP_WaitVSYNC();
+        disp_path_get_mutex();
+        disp_path_config_internal_mutex(&config);
+
+        OVLStart();
+        RDMAStart(0);
+        disp_path_release_mutex();
+    }
+    #else
     disp_unregister_irq(DISP_MODULE_RDMA0, _rdma0_irq_handler);
     disp_path_get_mutex();
     disp_path_config(&(disp_ovl_engine_params.path_info));
@@ -320,11 +342,24 @@ void disp_ovl_engine_direct_link_overlay(void)
 	}*/
     /*************************************************/
     // Ultra config    
-
+#endif
+	if(DISP_GetScreenWidth()>=1080)
+    {
+        // printk("[DDP]set 1080p ultra \n");
+        DISP_REG_SET(DISP_REG_OVL_RDMA0_MEM_GMC_SETTING, 0xFFFF0000);
+        DISP_REG_SET(DISP_REG_OVL_RDMA1_MEM_GMC_SETTING, 0xFFFF0000);
+        DISP_REG_SET(DISP_REG_OVL_RDMA2_MEM_GMC_SETTING, 0xFFFF0000);
+        DISP_REG_SET(DISP_REG_OVL_RDMA3_MEM_GMC_SETTING, 0xFFFF0000);
+    } else
+    {
     DISP_REG_SET(DISP_REG_OVL_RDMA0_MEM_GMC_SETTING, 0x40402020);
     DISP_REG_SET(DISP_REG_OVL_RDMA1_MEM_GMC_SETTING, 0x40402020);
     DISP_REG_SET(DISP_REG_OVL_RDMA2_MEM_GMC_SETTING, 0x40402020);
     DISP_REG_SET(DISP_REG_OVL_RDMA3_MEM_GMC_SETTING, 0x40402020);
+    }
+#if MTK_DISP_DIRECTLINK
+    DISP_REG_SET(DISP_REG_OVL_DATAPATH_CON, (1<<31));
+#endif
     
     // disp_wdma1 ultra
     DISP_REG_SET(DISP_REG_WDMA_BUF_CON1+0x1000, 0x800800ff);
@@ -339,6 +374,7 @@ void disp_ovl_engine_direct_link_overlay(void)
     
 }
 
+#if !MTK_TVSTICK_HDMI_PATH
 static void disp_ovl_engine_565_to_888(void *src_va, void *dst_va)
 {
     unsigned int xres = DISP_GetScreenWidth();
@@ -364,6 +400,41 @@ static void disp_ovl_engine_565_to_888(void *src_va, void *dst_va)
     }
 	__cpuc_flush_dcache_area(dst_va, ((xres * yres * 3) + 63) & ~63);	/* porting from abc123 */
 }
+#endif
+
+#if MTK_TVSTICK_HDMI_PATH
+int disp_config_m4u_port()
+{
+    M4U_PORT_STRUCT portStruct;
+    // config m4u port
+    DISP_OVL_ENGINE_DBG("config m4u start\n\n");
+    portStruct.ePortID = DISP_OVL_0;
+    portStruct.Virtuality = 1;
+    portStruct.Security = 0;
+    portStruct.domain = 3;
+    portStruct.Distance = 1;
+    portStruct.Direction = 0;
+    m4u_config_port(&portStruct);
+
+    portStruct.ePortID = DISP_WDMA;
+    portStruct.Virtuality = 1;
+    portStruct.Security = 0;
+    portStruct.domain = 1;
+    portStruct.Distance = 1;
+    portStruct.Direction = 0;
+    m4u_config_port(&portStruct);
+
+    portStruct.ePortID = DISP_RDMA;
+    portStruct.Virtuality = 1;
+    portStruct.Security = 0;
+    portStruct.domain = 1;
+    portStruct.Distance = 1;
+    portStruct.Direction = 0;
+    m4u_config_port(&portStruct);
+
+    return 0;
+}
+#endif
 
 int disp_ovl_engine_indirect_link_overlay(void *fb_va, void *fb_pa)
 {
@@ -578,7 +649,11 @@ int disp_ovl_engine_trigger_hw_overlay_couple(void)
     DISP_OVL_ENGINE_DBG("disp_ovl_engine_trigger_hw_overlay_couple entry\n");
 
     // overlay output to internal buffer
+#if MTK_DISP_DIRECTLINK
+    if (!disp_ovl_engine.bCouple && atomic_read(&disp_ovl_engine_params.OverlaySettingDirtyFlag))
+#else
     if (atomic_read(&disp_ovl_engine_params.OverlaySettingDirtyFlag))
+#endif
     {        
 		disp_module_clock_on(DISP_MODULE_SMI, "DDP");
 		disp_module_clock_on(DISP_MODULE_OVL, "DDP");
@@ -714,6 +789,62 @@ int disp_ovl_engine_trigger_hw_overlay_couple(void)
             }
         }
     }
+#if MTK_DISP_DIRECTLINK
+    else if (disp_ovl_engine.bCouple && atomic_read(&disp_ovl_engine_params.OverlaySettingDirtyFlag)) {
+
+        HDMI_VIDEO_RESOLUTION res =  hdmi_get_resolution();
+
+		for(layer_id=0; layer_id<DDP_OVL_LAYER_MUN; layer_id++)
+		{
+		    if (IS_INTERLACE_OUTPUT(res))
+            {
+                disp_ovl_engine_params.cached_layer_config[layer_id].dst_h /= 2;
+                disp_ovl_engine_params.cached_layer_config[layer_id].src_y /= 2;
+                disp_ovl_engine_params.cached_layer_config[layer_id].dst_y /= 2;
+                disp_ovl_engine_params.cached_layer_config[layer_id].src_pitch *= 2;
+            }
+			if((disp_ovl_engine_params.cached_layer_config[layer_id].layer_en) &&
+				(disp_ovl_engine_params.cached_layer_config[layer_id].security == OVL_LAYER_SECURE_BUFFER))
+				OvlSecureNew = 1;
+		}
+
+		if (OvlSecure != OvlSecureNew)
+        {
+			if (OvlSecureNew)
+            {
+				OvlSecure = OvlSecureNew;
+
+				DISP_OVL_ENGINE_ERR
+				    ("disp_ovl_engine_trigger_hw_overlay_couple, OvlSecure=0x%x\n",
+				     OvlSecure);
+
+				disp_register_intr(MT6582_DISP_OVL_IRQ_ID, OvlSecure);
+			}
+		}
+
+        disp_path_get_mutex();
+        for(layer_id=0; layer_id<DDP_OVL_LAYER_MUN; layer_id++) {
+            disp_ovl_engine_params.cached_layer_config[layer_id].layer = layer_id;
+            disp_path_config_layer_ovl_engine(&(disp_ovl_engine_params.cached_layer_config[layer_id]),OvlSecure);
+        }
+        disp_path_release_mutex();
+
+        if (OvlSecure != OvlSecureNew)
+        {
+            if (!OvlSecureNew)
+            {
+				disp_path_wait_reg_update(0);
+                OvlSecure = OvlSecureNew;
+
+                DISP_OVL_ENGINE_ERR
+                    ("disp_ovl_engine_trigger_hw_overlay_couple, OvlSecure=0x%x\n",
+                    OvlSecure);
+
+                disp_register_intr(MT6582_DISP_OVL_IRQ_ID, OvlSecure);
+            }
+        }
+    }
+#endif
 
     DISP_OVL_ENGINE_DBG("disp_ovl_engine_trigger_hw_overlay_couple leave\n");
     

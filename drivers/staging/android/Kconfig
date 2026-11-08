@@ -100,6 +100,13 @@ config AMAZON_METRICS_LOG
 	  These logs will be present at
 	  /dev/log/metrics.
 
+config AMAZON_MINERVA_METRICS_LOG
+        bool "Amazon Minerva Metrics logger "
+        select ANDROID_LOGGER
+        default n
+        help
+          Enable Amazon Minerva logger
+
 config SYNC
 	bool "Synchronization framework"
 	default n

@@ -39,7 +39,11 @@
 #define CMDQ_MAX_RETRY_COUNT           (1)
 
 #define CMDQ_MAX_FIXED_TASK            (70)
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define CMDQ_MAX_BLOCK_SIZE     (8 * 1024)
+#else
 #define CMDQ_MAX_BLOCK_SIZE     (32 * 1024)
+#endif
 #define CMDQ_MAX_DMA_BUF_SIZE   (CMDQ_MAX_FIXED_TASK * CMDQ_MAX_BLOCK_SIZE)
 #define CMDQ_EXTRA_MARGIN       (512)
 
@@ -59,29 +63,33 @@
 
 /* CMDQ_LOG_TO_UART for development & debug */
 #if CMDQ_LOG_TO_UART
-#define CMDQ_LOG(string, args...) \
+#define CMDQ_LOG(string, args...) do { \
     if(1) \
     { \
         printk("[CMDQ_LOG]"string, ##args); \
-    }
+    } \
+} while(0)
 
-#define CMDQ_MSG(string, args...)                                                                                   \
-    if(cmdq_core_should_print_msg())                                                                                \
-    {                                                                                                               \
-        printk("[CMDQ_MSG]"string, ##args);                                                                  \
-	}
+#define CMDQ_MSG(string, args...) do { \
+    if(cmdq_core_should_print_msg()) \
+    { \
+		printk("[CMDQ_MSG]"string, ##args); \
+	} \
+} while(0)
 
-#define CMDQ_VERBOSE(string, args...) \
+#define CMDQ_VERBOSE(string, args...) do { \
     if(cmdq_core_should_print_msg()) \
     { \
         printk("[CMDQ_VERBOSE]"string, ##args); \
-    }
+    } \
+} while(0)
 
-#define CMDQ_ERR(string, args...)                                                                                   \
-    if(1)                                                                                                           \
-    {                                                                                                               \
-        printk("[CMDQ][ERR]"string, ##args);                                                             \
-	}
+#define CMDQ_ERR(string, args...) do { \
+    if(1) \
+    { \
+		printk("[CMDQ][ERR]"string, ##args); \
+	} \
+} while(0)
 
 #define CMDQ_AEE(tag, string, args...)                                                                              \
     do {                                                                                                            \
@@ -93,29 +101,33 @@
     
 #else
 
-#define CMDQ_LOG(string, args...) \
+#define CMDQ_LOG(string, args...) do { \
     if(1) \
     { \
         printk(KERN_DEBUG "[CMDQ]"string, ##args); \
-    }
+    } \
+} while(0)
 
-#define CMDQ_MSG(string, args...)                                                                                   \
-    if(cmdq_core_should_print_msg())                                                                                \
-    {                                                                                                               \
-        printk(KERN_DEBUG "[CMDQ]"string, ##args);                                                                  \
-    }
+#define CMDQ_MSG(string, args...) do { \
+    if(cmdq_core_should_print_msg()) \
+    { \
+		printk(KERN_DEBUG "[CMDQ]"string, ##args); \
+    } \
+} while(0)
 
-#define CMDQ_VERBOSE(string, args...) \
+#define CMDQ_VERBOSE(string, args...) do { \
     if(cmdq_core_should_print_msg()) \
     { \
         printk(KERN_INFO "[CMDQ]"string, ##args); \
-    }
+    } \
+} while(0)
 
-#define CMDQ_ERR(string, args...)                                                                                   \
-    if(1)                                                                                                           \
-    {                                                                                                               \
-        printk(KERN_DEBUG "[CMDQ][ERR]"string, ##args);                                                             \
-    }
+#define CMDQ_ERR(string, args...) do { \
+    if(1) \
+    { \
+        printk(KERN_DEBUG "[CMDQ][ERR]"string, ##args); \
+    } \
+} while(0)
 
 #define CMDQ_AEE(tag, string, args...)                                                                              \
     do {                                                                                                            \
@@ -284,6 +296,10 @@ typedef struct cmdqSecDataStruct
     uint32_t portListLength;       // [IN] portList length
     void* addrList;                // [IN] address metadata, used to translate secure buffer address related instruction in secure world
     void* portList;                // [IN] address metadata, used to config HW' access sec/non-sec DRAM(i.e. sec port), pa/mva in secure world
+
+	/* we need to copy srcBuffer HDCP version to dstBuffer */
+	uint32_t srcHandleForHDCP;		/* add for MDP HDCP version copy in CMDQ trustzone */
+	uint32_t dstHandleForHDCP;		/* add for MDP HDCP version copy in CMDQ trustzone */
 } cmdqSecDataStruct;
 
 typedef struct cmdqCommandStruct

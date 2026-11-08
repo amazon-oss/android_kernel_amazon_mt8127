@@ -47,10 +47,19 @@ static const char * const boot_reason_messages[] = {
 	"ColdBoot From Power Key",
 	"ColdBoot From Charger",
 	"rtc",
+#ifdef CONFIG_ARCH_MT8127_TANK
+	"Software Watchdog Reboot",
+#endif
 	"Hardware Watchdog Reboot",
+#ifdef CONFIG_ARCH_MT8127_TANK
+	"Hardware Thermal Reboot",
+#endif
 	"reboot",
 	"tool reboot",
 	"smpl",
+#ifdef CONFIG_ARCH_MT8127_TANK
+	"others",
+#endif
 	"others",
 	"Warm Reboot",
 	"Kernel Panic Reboot",
@@ -64,9 +73,16 @@ static const char * const boot_reason_values[] = {
 	"usb_chg",
 	"rtc",
 	"wdt",
+#ifdef CONFIG_ARCH_MT8127_TANK
+	"wdt_hw",
+	"wdt_thermal",
+#endif
 	"reboot",
 	"tool reboot",
 	"smpl",
+#ifdef CONFIG_ARCH_MT8127_TANK
+	"others",
+#endif
 	"others",
 	"warm reboot",
 	"panic reboot",

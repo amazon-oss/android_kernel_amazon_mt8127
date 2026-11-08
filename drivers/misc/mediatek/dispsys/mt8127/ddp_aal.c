@@ -231,11 +231,13 @@ void disp_aal_notify_backlight_changed(int bl_1024)
     gHist.backlight = bl_1024;
     spin_unlock_irqrestore(&gHistLock , flag);
 
+#ifdef CONFIG_MTK_LEDS
     if (bl_1024 == 0) { // Turn off backlight
         backlight_brightness_set(0);
     } else if (!g_aal_service_running) {
         backlight_brightness_set(bl_1024);
     }
+#endif
 
     if (g_aal_service_running) {
         disp_set_aal_alarm(1);

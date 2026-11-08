@@ -400,6 +400,10 @@ static void _i2c_write_reg(mt_i2c *i2c)
   /*set start condition */
   if(i2c->speed <= 100){
     i2c_writel(i2c,OFFSET_EXT_CONF, 0x8001);
+#ifdef CONFIG_ARCH_MT8127_TANK
+  } else if(i2c->speed <= 400) {
+            i2c_writel(i2c,OFFSET_EXT_CONF, 0x501); //if still < 0.6 us, use 0x601 or other value
+#endif
   } else {
 	i2c_writel(i2c,OFFSET_EXT_CONF, 0x1800);
   }

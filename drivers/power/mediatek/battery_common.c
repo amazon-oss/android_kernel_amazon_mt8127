@@ -128,7 +128,11 @@ struct battery_info BQ_info;
 /* ////////////////////////////////////////////////////////////////////////////// */
 /* Battery Logging Entry */
 /* ////////////////////////////////////////////////////////////////////////////// */
+#ifdef CONFIG_ARCH_MT8127_TANK
+int Enable_BATDRV_LOG = BAT_LOG_ERROR;
+#else
 int Enable_BATDRV_LOG = BAT_LOG_CRTI;
+#endif
 
 /* ///////////////////////////////////////////////////////////////////////////////////////// */
 /* // Smart Battery Structure */
@@ -761,6 +765,8 @@ kal_bool upmu_is_chr_det(void)
 			battery_charging_control = chr_control_interface_bq24296;
 #elif defined(CONFIG_MTK_BQ24296_SUPPORT)
 		battery_charging_control = chr_control_interface_bq24296;
+#else
+        battery_charging_control = chr_control_interface;
 #endif
     }
 #if defined(CONFIG_POWER_EXT)
@@ -2449,11 +2455,24 @@ static void ac_update(struct ac_data *ac_data)
 
 	if (BMT_status.charger_exist == KAL_TRUE) {
 		#if !defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT)
+#ifdef CONFIG_ARCH_MT8127_TANK
+		if ((BMT_status.charger_type == NONSTANDARD_CHARGER) ||
+		    (BMT_status.charger_type == STANDARD_CHARGER)    ||
+			(BMT_status.charger_type == APPLE_2_1A_CHARGER) ||
+			(BMT_status.charger_type == APPLE_1_0A_CHARGER) ||
+			(BMT_status.charger_type == APPLE_0_5A_CHARGER)) {
+#else
 		if ((BMT_status.charger_type == NONSTANDARD_CHARGER) ||
 		    (BMT_status.charger_type == STANDARD_CHARGER)) {
+#endif
 		#else
 		if ((BMT_status.charger_type == NONSTANDARD_CHARGER) ||
 		    (BMT_status.charger_type == STANDARD_CHARGER)    ||
+#ifdef CONFIG_ARCH_MT8127_TANK
+			(BMT_status.charger_type == APPLE_2_1A_CHARGER) ||
+			(BMT_status.charger_type == APPLE_1_0A_CHARGER) ||
+			(BMT_status.charger_type == APPLE_0_5A_CHARGER) ||
+#endif
 			(DISO_data.diso_state.cur_vdc_state == DISO_ONLINE)) {
 		#endif
 			ac_data->AC_ONLINE = 1;
@@ -4136,6 +4155,8 @@ static void get_charging_control(void)
 		battery_charging_control = chr_control_interface_bq24296;
 #elif defined(CONFIG_MTK_BQ24296_SUPPORT)
 		battery_charging_control = chr_control_interface_bq24296;
+#else
+	battery_charging_control = chr_control_interface;
 #endif
 }
 

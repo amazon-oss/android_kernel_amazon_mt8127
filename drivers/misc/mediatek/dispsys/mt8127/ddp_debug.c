@@ -237,6 +237,31 @@ static void process_dbg_opt(const char *opt)
             DISP_ERR("KREE_TeeServiceCall(TZCMD_DDP_SET_DEBUG_LOG) fail, ret=%d \n", ret);
         }
     }
+#ifdef MTK_AOSP_TVSTICK_SUPPORT
+	else if (0 == strncmp(opt, "set_hdcp:", 9))
+    {
+        char *p = (char *)opt + 9;
+        unsigned int HDCPUT_en = (unsigned int) simple_strtoul(p, &p, 10);
+        unsigned int required_hdcp = (unsigned int) simple_strtoul(p + 1, &p, 16);
+        unsigned int hdmi_hdcp = (unsigned int) simple_strtoul(p + 1, &p, 10);
+        MTEEC_PARAM param[4];
+        unsigned int paramTypes;
+        TZ_RESULT ret;
+
+		DISP_MSG("DDP_DEBUG KREE_TeeServiceCall(TZCMD_DDP_SET_DEBUG_HDCP)\n");
+
+        param[0].value.a = HDCPUT_en;
+        param[1].value.a = required_hdcp;
+        param[2].value.a = hdmi_hdcp;
+        paramTypes = TZ_ParamTypes3(TZPT_VALUE_INPUT, TZPT_VALUE_INPUT, TZPT_VALUE_INPUT);
+
+        ret = KREE_TeeServiceCall(ddp_session_handle(), TZCMD_DDP_SET_DEBUG_HDCP, paramTypes, param);
+        if (ret!= TZ_RESULT_SUCCESS)
+        {
+            DISP_ERR("KREE_TeeServiceCall(TZCMD_DDP_SET_DEBUG_HDCP) fail, ret=%d \n", ret);
+        }
+    }
+#endif
 #endif
     else if (0 == strncmp(opt, "irq_err_log:", 12))
     {

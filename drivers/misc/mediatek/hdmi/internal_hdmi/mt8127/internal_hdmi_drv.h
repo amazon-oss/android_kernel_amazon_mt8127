@@ -5,9 +5,9 @@
 #ifdef CONFIG_MTK_INTERNAL_HDMI_SUPPORT
 
 #include "hdmictrl.h"
-#include "hdmiedid.h"
+#include <linux/hdmitx.h>
 #include "hdmicec.h"
-
+#include "hdmi_debug.h"
 #define AVD_TMR_ISR_TICKS   10
 #define MDI_BOUCING_TIMING  50//20 //20ms
 
@@ -15,10 +15,10 @@ typedef enum
 {
  HDMI_CEC_CMD=0,
  HDMI_PLUG_DETECT_CMD,
- HDMI_HDCP_PROTOCAL_CMD,	
+ HDMI_HDCP_PROTOCAL_CMD,
  HDMI_DISABLE_HDMI_TASK_CMD,
  MAX_HDMI_TMR_NUMBER
-	
+
 }HDMI_TASK_COMMAND_TYPE_T;
 
 #endif
@@ -46,7 +46,7 @@ typedef enum
 }HDMI_COLOR_ORDER;
 
 typedef enum
-{    
+{
    IO_DRIVING_CURRENT_8MA       = (1 << 0),
    IO_DRIVING_CURRENT_4MA       = (1 << 1),
    IO_DRIVING_CURRENT_2MA       = (1 << 2),
@@ -74,7 +74,7 @@ typedef enum
 	HDMI_AUDIO_PCM_16bit_44100,
 	HDMI_AUDIO_PCM_16bit_32000,
 	HDMI_AUDIO_SOURCE_STREAM,
-}HDMI_AUDIO_FORMAT; 
+}HDMI_AUDIO_FORMAT;
 
 typedef struct
 {
@@ -116,7 +116,7 @@ typedef struct
     unsigned int vsync_pulse_width;
     unsigned int vsync_back_porch;
     unsigned int vsync_front_porch;
-    
+
     /* output format parameters */
     HDMI_COLOR_ORDER rgb_order;
 
@@ -133,10 +133,10 @@ typedef struct
     unsigned int scaling_factor; // determine the scaling of output screen size, valid value 0~10
                                  // 0 means no scaling, 5 means scaling to 95%, 10 means 90%
      bool NeedSwHDCP;
-     HDMI_CABLE_TYPE cabletype;    
+     HDMI_CABLE_TYPE cabletype;
 }HDMI_PARAMS;
 
-typedef struct 
+typedef struct
 {
 	unsigned char	e_hdmi_aud_in;
 	unsigned char	e_iec_frame;
@@ -154,7 +154,10 @@ typedef enum{
 	HDMI_STATE_ACTIVE,
 	HDMI_STATE_PLUGIN_ONLY,
 	HDMI_STATE_EDID_UPDATE,
-	HDMI_STATE_CEC_UPDATE
+	HDMI_STATE_CEC_UPDATE,
+	HDMI_STATE_CHANGE_RESOLUTION,
+	HDMI_STATE_CHANGE_AUDIO_OFF,
+	HDMI_STATE_CHANGE_AUDIO_ON
 }HDMI_STATE;
 
 typedef enum{
@@ -217,11 +220,14 @@ typedef struct
 	void (*cecenable)(unsigned char u1EnCec);
 	void (*getcecaddr)(CEC_ADDRESS *cecaddr);
 	int (*audiosetting)(HDMIDRV_AUDIO_PARA* audio_para);
+	int (*audiochsetting) (HDMITX_AUDIO_PARA *audio_para);
 	int (*tmdsonoff)(unsigned char u1ionoff);
 	void (*mutehdmi)(unsigned char u1flagvideomute, unsigned char u1flagaudiomute);
 	void (*svpmutehdmi)(unsigned char u1svpvideomute, unsigned char u1svpaudiomute);
-    void (*cecusrcmd)(unsigned int cmd, unsigned int* result);	   
-	void (*checkedidheader)(void);   	
+    void (*cecusrcmd)(unsigned int cmd, unsigned int* result);
+	unsigned char (*checkedidheader)(void);
+	void (*hdcp_level) (u8 *current_level, u8 *max_level);
+	unsigned int (*hdcp_status) (void);
 } HDMI_DRIVER;
 
 
@@ -230,5 +236,6 @@ typedef struct
 // ---------------------------------------------------------------------------
 
 const HDMI_DRIVER* HDMI_GetDriver(void);
+extern unsigned int hdmistate_debug;
 
 #endif

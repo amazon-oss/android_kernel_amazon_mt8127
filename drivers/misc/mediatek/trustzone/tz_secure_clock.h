@@ -9,7 +9,7 @@
 #include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/rtc.h>
-
+#include <linux/time.h>
 
 
 #include "tz_cross/trustzone.h"

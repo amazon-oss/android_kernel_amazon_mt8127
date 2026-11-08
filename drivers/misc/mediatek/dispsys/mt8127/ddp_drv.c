@@ -58,6 +58,7 @@
 #include "ddp_cmdq.h"
 #include "ddp_bls.h"
 #include "debug.h"
+#include "disp_drv_platform.h"
 
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 #include "tz_cross/trustzone.h"
@@ -288,6 +289,9 @@ void disp_check_clock_tree(void) {
 			*(volatile unsigned int*)(0xf0000040),
 			*(volatile unsigned int*)(0xf4000100),
 			*(volatile unsigned int*)(0xf4000110));
+#if MTK_TVSTICK_HDMI_PATH
+	return;
+#endif
 	// All need
 	if ((DISP_REG_GET(0xf0000040)&0xff) != 0x01) {
 		DISP_ERR("CLK_CFG_0 abnormal: hf_faxi_ck is off! 0xf0000040=0x%x \n", DISP_REG_GET(0xf0000040));
@@ -1921,6 +1925,7 @@ static long disp_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lo
          case DISP_IOCTL_SET_GAMMALUT:
 
             DISP_MSG("DISP_IOCTL_SET_GAMMALUT\n");
+#if !MTK_TVSTICK_HDMI_PATH
 
 			/*gamma_index = get_gamma_index();
 			if(copy_from_user(gamma_index, (void *)arg, sizeof(DISPLAY_GAMMA_T)))
@@ -1956,6 +1961,7 @@ static long disp_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lo
             ReleaseUpdateMutex();
 
             disp_set_needupdate(DISP_MODULE_COLOR, 1);
+#endif
 
             break;
 
@@ -2370,6 +2376,7 @@ static struct file_operations disp_fops = {
 	.mmap       = disp_mmap
 };
 
+struct device *disp_device;
 static int disp_probe(struct platform_device *pdev)
 {
     struct class_device;
@@ -2377,6 +2384,8 @@ static int disp_probe(struct platform_device *pdev)
 	int ret;
 	int i;
     struct class_device *class_dev = NULL;
+
+	disp_device = &pdev->dev;
 
     DISP_MSG("\ndisp driver probe...\n\n");
 	ret = alloc_chrdev_region(&disp_devno, 0, 1, DISP_DEVNAME);
@@ -2410,11 +2419,18 @@ static int disp_probe(struct platform_device *pdev)
 
     // Register IRQ
     //DISP_REGISTER_IRQ(MT6582_DISP_COLOR_IRQ_ID);
+#if MTK_DISP_DIRECTLINK
+    //DISP_REGISTER_IRQ(MT6582_DISP_BLS_IRQ_ID);
+    DISP_REGISTER_IRQ(MT6582_DISP_OVL_IRQ_ID);
+#else
     DISP_REGISTER_IRQ(MT6582_DISP_BLS_IRQ_ID);
     //DISP_REGISTER_IRQ(MT6582_DISP_OVL_IRQ_ID);
+#endif
     DISP_REGISTER_IRQ(MT6582_DISP_WDMA_IRQ_ID);
     DISP_REGISTER_IRQ(MT6582_DISP_RDMA_IRQ_ID);
+#if !MTK_DISP_DIRECTLINK
     DISP_REGISTER_IRQ(MT6582_DISP_RDMA1_IRQ_ID);
+#endif
     DISP_REGISTER_IRQ(MT6582_DISP_CMDQ_IRQ_ID);
     //DISP_REGISTER_IRQ(MT6582_DISP_CMDQ_SECURE_IRQ_ID);
     DISP_REGISTER_IRQ(MT6582_DISP_MUTEX_IRQ_ID);
@@ -2447,9 +2463,11 @@ static int disp_probe(struct platform_device *pdev)
     disp_irq_err_timer.function = disp_irq_err_timer_handler;
     add_timer(&disp_irq_err_timer);
     
+#if !MTK_TVSTICK_HDMI_PATH
 	disp_bls_init(DISP_GetScreenWidth(),DISP_GetScreenHeight());			  
 	DpEngine_COLORonInit();
 	DpEngine_COLORonConfig(DISP_GetScreenWidth(),DISP_GetScreenHeight()); //height
+#endif
 
 	DISP_MSG("DISP Probe Done\n");
 	NOT_REFERENCED(class_dev);

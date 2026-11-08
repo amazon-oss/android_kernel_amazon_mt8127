@@ -24,8 +24,13 @@
 //  Local Constants
 // ---------------------------------------------------------------------------
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define FRAME_WIDTH  (1920)
+#define FRAME_HEIGHT (1080)
+#else
 #define FRAME_WIDTH  (1024)
 #define FRAME_HEIGHT (600)
+#endif
 
 
 

@@ -55,6 +55,43 @@ typedef struct{
 
 extern struct proc_dir_entry * mtk_thermal_get_proc_drv_therm_dir_entry(void);
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define AUX_CHANNEL_NUM 2
+#define AUX_IN0_NTC (1) //NTC6301
+#define AUX_IN1_NTC (12)
+
+struct mtkts_bts_channel_param {
+	int g_RAP_pull_up_R;
+	int g_TAP_over_critical_low;
+	int g_RAP_pull_up_voltage;
+	int g_RAP_ntc_table;
+	int g_RAP_ADC_channel;
+	int g_AP_TemperatureR;
+	char *channelName;
+};
+
+static struct mtkts_bts_channel_param bts_channel_param[AUX_CHANNEL_NUM] = 
+{
+	{
+		39000, //39K,pull up resister
+		195652, //base on 100K NTC temp default value -40 deg
+		1800, //1.8V ,pull up voltage
+		7,  //default is //NTCG104EF104F(100K)
+		AUX_IN0_NTC,
+		0,
+		"mtkts_bts0"
+	},
+	{
+		39000, //39K,pull up resister
+		195652, //base on 100K NTC temp default value -40 deg
+		1800, //1.8V ,pull up voltage
+		7,  //default is //NTCG104EF104F(100K)
+		AUX_IN1_NTC,
+		0,
+		"mtkts_bts1"
+	},
+};
+#else
 #define AUX_IN0_NTC (0) //NTC6301
 
 static int g_RAP_pull_up_R = 39000;//39K,pull up resister
@@ -64,6 +101,7 @@ static int g_RAP_ntc_table = 7;  //default is //NTCG104EF104F(100K)
 static int g_RAP_ADC_channel = AUX_IN0_NTC;  //default is 0
 
 static int g_AP_TemperatureR = 0;
+#endif
 
 static BTS_TEMPERATURE BTS_Temperature_Table[] = {
 	{0,0}, {0,0}, {0,0}, {0,0}, {0,0},
@@ -199,7 +237,11 @@ static INT16 mtkts_bts_thermistor_conver_temp(INT32 Res)
 
 /* convert ADC_AP_temp_volt to register */
 /* Volt to Temp formula same with 6589  */
+#ifdef CONFIG_ARCH_MT8127_TANK
+static INT16 mtk_ts_bts_volt_to_temp(int index, UINT32 dwVolt)
+#else
 static INT16 mtk_ts_bts_volt_to_temp(UINT32 dwVolt)
+#endif
 {
     INT32 TRes;
     INT32 dwVCriAP = 0;
@@ -209,6 +251,21 @@ static INT16 mtk_ts_bts_volt_to_temp(UINT32 dwVolt)
       dwVCriAP = (TAP_OVER_CRITICAL_LOW * 1800) / (TAP_OVER_CRITICAL_LOW + 39000);
       dwVCriAP = (TAP_OVER_CRITICAL_LOW * RAP_PULL_UP_VOLT) / (TAP_OVER_CRITICAL_LOW + RAP_PULL_UP_R);
     */
+#ifdef CONFIG_ARCH_MT8127_TANK
+    dwVCriAP = (bts_channel_param[index].g_TAP_over_critical_low * bts_channel_param[index].g_RAP_pull_up_voltage) / 
+    			(bts_channel_param[index].g_TAP_over_critical_low + bts_channel_param[index].g_RAP_pull_up_R);
+
+    if(dwVolt > dwVCriAP)
+    {
+        TRes = bts_channel_param[index].g_TAP_over_critical_low;
+    }
+    else
+    {
+        TRes = (bts_channel_param[index].g_RAP_pull_up_R*dwVolt) / (bts_channel_param[index].g_RAP_pull_up_voltage-dwVolt);
+    }
+
+    bts_channel_param[index].g_AP_TemperatureR = TRes;
+#else
     dwVCriAP = (g_TAP_over_critical_low * g_RAP_pull_up_voltage) / (g_TAP_over_critical_low + g_RAP_pull_up_R);
 
     if(dwVolt > dwVCriAP)
@@ -221,6 +278,7 @@ static INT16 mtk_ts_bts_volt_to_temp(UINT32 dwVolt)
     }
 
     g_AP_TemperatureR = TRes;
+#endif
 
     /* convert register to temperature */
     BTS_TMP = mtkts_bts_thermistor_conver_temp(TRes);
@@ -229,11 +287,19 @@ static INT16 mtk_ts_bts_volt_to_temp(UINT32 dwVolt)
     return BTS_TMP;
 }
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+static int get_hw_bts_temp(int index)
+{
+
+	int ret = 0, data[4], i, ret_value = 0, ret_temp = 0, output;
+	int times=1, Channel = bts_channel_param[index].g_RAP_ADC_channel;
+#else
 static int get_hw_bts_temp(void)
 {
 
 	int ret = 0, data[4], i, ret_value = 0, ret_temp = 0, output;
 	int times=1, Channel=g_RAP_ADC_channel;
+#endif
 	static int valid_temp;
 
 	if( IMM_IsAdcInitReady() == 0 )
@@ -259,15 +325,25 @@ static int get_hw_bts_temp(void)
 	}
 
 	ret = ret*1500/4096; /* 82's ADC power */
+#ifdef CONFIG_ARCH_MT8127_TANK
+	pr_debug("Channel = %d\n", Channel);
+	pr_debug("APtery output mV = %d\n",ret);
+	output = mtk_ts_bts_volt_to_temp(index, ret);
+#else
 	pr_debug("APtery output mV = %d\n",ret);
 	output = mtk_ts_bts_volt_to_temp(ret);
+#endif
 	pr_debug("BTS output temperature = %d\n",output);
 
 	return output;
 }
 
 static DEFINE_MUTEX(BTS_lock);
+#ifdef CONFIG_ARCH_MT8127_TANK
+int mtkts_bts_get_hw_temp(int index)
+#else
 int mtkts_bts_get_hw_temp(void)
+#endif
 {
 	int t_ret=0;
 
@@ -276,7 +352,11 @@ int mtkts_bts_get_hw_temp(void)
 	/* get HW AP temp (TSAP)
 	   cat /sys/class/power_supply/AP/AP_temp
 	*/
+#ifdef CONFIG_ARCH_MT8127_TANK
+	t_ret = get_hw_bts_temp(index);
+#else
 	t_ret = get_hw_bts_temp();
+#endif
 	t_ret = t_ret * 1000;
 
 	mutex_unlock(&BTS_lock);
@@ -293,7 +373,17 @@ int mtkts_bts_get_hw_temp(void)
 static int mtkts_bts_get_temp(struct thermal_zone_device *thermal,
 			                 unsigned long *t)
 {
+#ifdef CONFIG_ARCH_MT8127_TANK
+	int i = thermal->type[strlen(thermal->type)-1] - '0';
+	if (i < 0 || i > AUX_CHANNEL_NUM) {
+		pr_err("%s bad channel index %d, name=%s\n", __func__, i, thermal->type);
+		return -EINVAL;
+	}
+
+	*t = mtkts_bts_get_hw_temp(i);
+#else
 	*t = mtkts_bts_get_hw_temp();
+#endif
 	return 0;
 }
 
@@ -416,6 +506,20 @@ static struct thermal_zone_device_ops mtkts_bts_dev_ops = {
 
 /* =========== bts thermal param handling ========== */
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+static struct thermal_dev_params mtkts_bts_tdp[AUX_CHANNEL_NUM] = {
+	{
+		.offset = 26500,
+		.alpha = 15,
+		.weight = 500,
+	},
+	{
+		.offset = 27000,
+		.alpha = 15,
+		.weight = 500,
+	},
+};
+#else
 #ifdef CONFIG_AUSTIN_PROJECT
 struct thermal_dev_params mtkts_bts_tdp = {
 	.offset = -2500,
@@ -428,6 +532,7 @@ struct thermal_dev_params mtkts_bts_tdp = {
 	.alpha = 15,
 	.weight = 113
 };
+#endif
 #endif
 
 static int mtkts_bts_show_params(struct device *dev,
@@ -529,11 +634,22 @@ void mtkts_bts_prepare_table(int table_num)
 
 static int mtkts_bts_param_read(struct seq_file *m, void *v)
 {
+#ifdef CONFIG_ARCH_MT8127_TANK
+	int i;
+	for (i = 0; i < AUX_CHANNEL_NUM; i++) {
+		seq_printf(m, "%d\t", bts_channel_param[i].g_RAP_pull_up_R);
+		seq_printf(m, "%d\t", bts_channel_param[i].g_RAP_pull_up_voltage);
+		seq_printf(m, "%d\t", bts_channel_param[i].g_TAP_over_critical_low);
+		seq_printf(m, "%d\t", bts_channel_param[i].g_RAP_ntc_table);
+		seq_printf(m, "%d\n", bts_channel_param[i].g_RAP_ADC_channel);
+	}
+#else
 	seq_printf(m, "%d\n",g_RAP_pull_up_R);
 	seq_printf(m, "%d\n",g_RAP_pull_up_voltage);
 	seq_printf(m, "%d\n",g_TAP_over_critical_low);
 	seq_printf(m, "%d\n",g_RAP_ntc_table);
 	seq_printf(m, "%d\n",g_RAP_ADC_channel);
+#endif
 
 	return 0;
 }
@@ -548,6 +664,9 @@ static ssize_t mtkts_bts_param_write(struct file *file, const char __user *buffe
 	char NTC_TABLE[10];
 	unsigned int valR,valV,over_cri_low,ntc_table;
 	unsigned int adc_channel;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	int i;
+#endif
 
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
@@ -567,6 +686,45 @@ static ssize_t mtkts_bts_param_write(struct file *file, const char __user *buffe
 	}
 
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+	for (i = 0; i < AUX_CHANNEL_NUM; i++) {
+		if (bts_channel_param[i].g_RAP_ADC_channel == adc_channel) break;
+	}
+	if (i == AUX_CHANNEL_NUM) {
+		pr_err("%s bad channel argument %d\n", __func__, adc_channel);
+		return -EINVAL;		
+	}
+
+	if (!strcmp(pull_R, "PUP_R"))
+		bts_channel_param[i].g_RAP_pull_up_R = valR;
+	else{
+		pr_err("%s bad PUP_R argument\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!strcmp(pull_V, "PUP_VOLT"))
+		bts_channel_param[i].g_RAP_pull_up_voltage = valV;
+	else{
+		pr_err("%s bad PUP_VOLT argument\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!strcmp(overcrilow, "OVER_CRITICAL_L"))
+		bts_channel_param[i].g_TAP_over_critical_low = over_cri_low;
+	else{
+		pr_err("%s bad OVERCRIT_L argument\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!strcmp(NTC_TABLE, "NTC_TABLE"))
+		bts_channel_param[i].g_RAP_ntc_table = ntc_table;
+	else{
+		pr_err("%s bad NTC_TABLE argument\n", __func__);
+		return -EINVAL;
+	}
+
+	mtkts_bts_prepare_table(bts_channel_param[i].g_RAP_ntc_table);
+#else
 	if (!strcmp(pull_R, "PUP_R"))
 		g_RAP_pull_up_R = valR;
 	else{
@@ -616,6 +774,7 @@ static ssize_t mtkts_bts_param_write(struct file *file, const char __user *buffe
 	}
 
 	mtkts_bts_prepare_table(g_RAP_ntc_table);
+#endif
 
 	return count;
 }
@@ -655,7 +814,17 @@ static void mtkts_bts_work(struct work_struct *work)
 
 static int mtkts_bts_read_temp(struct thermal_dev *tdev)
 {
+#ifdef CONFIG_ARCH_MT8127_TANK
+	int i = tdev->name[strlen(tdev->name)-1] - '0';
+	if (i < 0 || i > AUX_CHANNEL_NUM) {
+		pr_err("%s bad channel index %d, name=%s\n", __func__, i, tdev->name);
+		return -EINVAL;
+	}
+
+	return mtkts_bts_get_hw_temp(i);
+#else
 	return mtkts_bts_get_hw_temp();
+#endif
 }
 static struct thermal_dev_ops mtkts_bts_fops = {
 	.get_temp = mtkts_bts_read_temp,
@@ -673,11 +842,27 @@ static int mtkts_bts_probe(struct platform_device *pdev)
 		pr_err("%s: Error getting platform data\n", __func__);
 		return -EINVAL;
 	}
+#ifdef CONFIG_ARCH_MT8127_TANK
+	pr_info("%s thermal bts %d %d\n", __func__, pdev->id, pdev->dev.id);
+
+	/* setup default table */
+	if (pdev->id < 0 || pdev->id >= AUX_CHANNEL_NUM) {
+		pr_err("%s: Error too many bts devices than defined, pdev->id = %d\n", __func__, pdev->id);
+		return -EINVAL;
+	}
+
+	mtkts_bts_prepare_table(bts_channel_param[pdev->id].g_RAP_ntc_table);
+#else
 	pr_info("%s thermal bts\n", __func__);
 
 	/* setup default table */
 	mtkts_bts_prepare_table(g_RAP_ntc_table);
+#endif
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+	/* proc entry only need one */
+	if (pdev->id == 0) {
+#endif
 	mtkts_AP_dir = mtk_thermal_get_proc_drv_therm_dir_entry();
 	if (!mtkts_AP_dir)
 		pr_err("%s: mkdir /proc/driver/thermal failed\n", __func__);
@@ -687,6 +872,9 @@ static int mtkts_bts_probe(struct platform_device *pdev)
 		if (entry)
 			proc_set_user(entry, 0, 1000);
 	}
+#ifdef CONFIG_ARCH_MT8127_TANK
+	}
+#endif
 
 	tzone = devm_kzalloc(&pdev->dev, sizeof(*tzone), GFP_KERNEL);
 	if (!tzone)
@@ -694,7 +882,11 @@ static int mtkts_bts_probe(struct platform_device *pdev)
 
 	memset(tzone, 0, sizeof(*tzone));
 	tzone->pdata = pdata;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	tzone->tz = thermal_zone_device_register(bts_channel_param[pdev->id].channelName,
+#else
 	tzone->tz = thermal_zone_device_register("mtkts_bts",
+#endif
 						pdata->num_trips,
 						(1 << pdata->num_trips) - 1,
 						tzone,
@@ -709,10 +901,18 @@ static int mtkts_bts_probe(struct platform_device *pdev)
 	tzone->therm_fw = kzalloc(sizeof(struct thermal_dev), GFP_KERNEL);
 	if (!tzone->therm_fw)
 		return -ENOMEM;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	tzone->therm_fw->name = bts_channel_param[pdev->id].channelName;
+#else
 	tzone->therm_fw->name = "mtkts_bts";
+#endif
 	tzone->therm_fw->dev = &(pdev->dev);
 	tzone->therm_fw->dev_ops = &mtkts_bts_fops;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	tzone->therm_fw->tdp = &mtkts_bts_tdp[pdev->id];
+#else
 	tzone->therm_fw->tdp = &mtkts_bts_tdp;
+#endif
 
 	ret = thermal_dev_register(tzone->therm_fw);
 	if (ret) {
@@ -750,6 +950,49 @@ static struct platform_driver mtkts_bts_driver = {
 	},
 };
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+static struct mtk_thermal_platform_data mtkts_bts_thermal_data0 = {
+	.num_trips = 3,
+	.mode = THERMAL_DEVICE_DISABLED,
+	.polling_delay = 1000,
+	/* original trip temps:
+	   {120000,110000,100000,90000,80000,70000,65000,60000,55000,50000};
+	   Only use the ones below critical temp
+	*/
+	.trips[0] = {.temp = 85000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0},
+	.trips[1] = {.temp = 90000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0},
+	.trips[2] = {.temp = MTKTS_BTS_TEMP_CRIT, .type = THERMAL_TRIP_CRITICAL, .hyst = 0},
+};
+
+static struct platform_device mtkts_bts_device0 = {
+	.name = "mtkts_bts",
+	.id = 0,
+	.dev = {
+		.platform_data = &mtkts_bts_thermal_data0,
+	},
+};
+
+static struct mtk_thermal_platform_data mtkts_bts_thermal_data1 = {
+	.num_trips = 3,
+	.mode = THERMAL_DEVICE_DISABLED,
+	.polling_delay = 1000,
+	/* original trip temps:
+	   {120000,110000,100000,90000,80000,70000,65000,60000,55000,50000};
+	   Only use the ones below critical temp
+	*/
+	.trips[0] = {.temp = 85000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0},
+	.trips[1] = {.temp = 90000, .type = THERMAL_TRIP_ACTIVE, .hyst = 0},
+	.trips[2] = {.temp = MTKTS_BTS_TEMP_CRIT, .type = THERMAL_TRIP_CRITICAL, .hyst = 0},
+};
+
+static struct platform_device mtkts_bts_device1 = {
+	.name = "mtkts_bts",
+	.id = 1,
+	.dev = {
+		.platform_data = &mtkts_bts_thermal_data1,
+	},
+};
+#else
 static struct mtk_thermal_platform_data mtkts_bts_thermal_data = {
 	.num_trips = 0,
 	.mode = THERMAL_DEVICE_DISABLED,
@@ -770,6 +1013,7 @@ static struct platform_device mtkts_bts_device = {
 		.platform_data = &mtkts_bts_thermal_data,
 	},
 };
+#endif
 
 static int __init mtkts_bts_init(void)
 {
@@ -779,18 +1023,36 @@ static int __init mtkts_bts_init(void)
 		pr_err("Unable to register mtkts_bts thermal driver (%d)\n", ret);
 		return ret;
 	}
+#ifdef CONFIG_ARCH_MT8127_TANK
+	ret = platform_device_register(&mtkts_bts_device0);
+	if (ret) {
+		pr_err("Unable to register mtkts_bts device0 (%d)\n", ret);
+		return ret;
+	}
+	ret = platform_device_register(&mtkts_bts_device1);
+	if (ret) {
+		pr_err("Unable to register mtkts_bts device1 (%d)\n", ret);
+		return ret;
+	}
+#else
 	ret = platform_device_register(&mtkts_bts_device);
 	if (ret) {
 		pr_err("Unable to register mtkts_bts device (%d)\n", ret);
 		return ret;
 	}
+#endif
 	return 0;
 }
 
 static void __exit mtkts_bts_exit(void)
 {
 	platform_driver_unregister(&mtkts_bts_driver);
+#ifdef CONFIG_ARCH_MT8127_TANK
+	platform_device_unregister(&mtkts_bts_device0);
+	platform_device_unregister(&mtkts_bts_device1);
+#else
 	platform_device_unregister(&mtkts_bts_device);
+#endif
 }
 
 module_init(mtkts_bts_init);

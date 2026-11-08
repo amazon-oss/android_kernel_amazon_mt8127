@@ -186,6 +186,12 @@ extern void hdmi_hdcpkey(unsigned char *pbhdcpkey);
 extern void vShowHdcpRawData(void);
 extern void vDrm_mutehdmi(unsigned char u1flagvideomute, unsigned char u1flagaudiomute);
 extern void vSvp_mutehdmi(unsigned char u1svpvideomute, unsigned char u1svpaudiomute);
+extern unsigned char hdmi_check_hdcp_key(void);
+extern unsigned char hdmi_check_hdcp_state(void);
+extern unsigned char hdmi_check_hdcp_enable(void);
+extern unsigned char fgIsRepeater(void);
+extern bool ghdcp_auth_status;
+extern size_t hdmi_hotplugstate;
 
 #endif
 #endif

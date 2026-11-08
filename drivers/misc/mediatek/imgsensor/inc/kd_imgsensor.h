@@ -234,6 +234,7 @@
 #define OV9760MIPI_SENSOR_ID                    0x9760
 #define A5141MIPI_SENSOR_ID                     0x4800
 #define SP0A19_SENSOR_ID				0xA6
+#define SP0A19_YUV_SENSOR_ID				0xA6
 #define SP2509MIPI_SENSOR_ID			0x2509
 #define A5142MIPI_SENSOR_ID                     0x4800
 #define GC0313MIPI_YUV_SENSOR_ID                0xD0
@@ -349,6 +350,7 @@
 #define SENSOR_DRVNAME_S5K3H2YX_MIPI_RAW   "s5k3h2yxmipiraw"
 #define SENSOR_DRVNAME_S5K2P8_MIPI_RAW   "s5k2p8mipiraw"
 #define SENSOR_DRVNAME_SP0A19_RAW   "sp0a19raw"
+#define SENSOR_DRVNAME_SP0A19_YUV   "sp0a19yuv"
 #define SENSOR_DRVNAME_SP2509_MIPI_RAW   "sp2509mipiraw"
 #define SENSOR_DRVNAME_IMX219_MIPI_RAW "imx219mipiraw"
 #define SENSOR_DRVNAME_IMX135_MIPI_RAW   "imx135mipiraw"

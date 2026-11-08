@@ -223,9 +223,17 @@ static struct snd_pcm_hardware audio_hw_info = {
 	.rate_max		= SAMPLE_RATE,
 
 	.buffer_bytes_max =	1024 * 1024,
+#ifdef CONFIG_ARCH_MT8127_TANK
+	.period_bytes_min =	64 * 32,
+#else
 	.period_bytes_min =	64,
+#endif
 	.period_bytes_max =	512 * 1024,
+#ifdef CONFIG_ARCH_MT8127_TANK
+	.periods_min =		2 * 32,
+#else
 	.periods_min =		2,
+#endif
 	.periods_max =		1024,
 };
 

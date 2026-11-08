@@ -137,6 +137,14 @@ config MTK_AEE_MRDUMP
 	tristate "Enable AEE RAMDUMP support"
 	default y
 
+config MTK_AEE_UT
+	tristate "control AED debug file"
+	help
+	  MTK_AEE_UT is the kernel config of aed-debug.c
+	  aed-debug.c is AEE UT test case file, just for generate some vendor
+	  exception to test AEE dump flow, include in KE, HWT, HW_reboot, EE,
+	  and kernelAPI exception
+
 config ANDROID_VMEM
 	tristate "Virutally continuous memory allocator"
 	default y

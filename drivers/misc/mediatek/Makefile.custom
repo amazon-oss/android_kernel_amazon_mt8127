@@ -103,7 +103,8 @@ ccflags-y += -I$(MTK_CUSTOM_PATH)/accdet/$(MTK_PLATFORM) \
              -I$(MTK_CUSTOM_PATH)/wdk \
              -I$(MTK_CUSTOM_PATH)/mjc/$(MTK_PLATFORM) \
              -I$(MTK_CUSTOM_PATH)/lcm \
-             -I$(MTK_CUSTOM_PATH)/lcm/inc
+             -I$(MTK_CUSTOM_PATH)/lcm/inc \
+             -I$(MTK_CUSTOM_PATH)/usb11
 
 ccflags-y += -I$(MTK_CUSTOM_PATH)/lens/$(MTK_PLATFORM)/inc
 # the below lens setting  should be removed later!

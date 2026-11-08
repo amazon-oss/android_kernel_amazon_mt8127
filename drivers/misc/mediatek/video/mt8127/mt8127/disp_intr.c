@@ -7,6 +7,8 @@
 #include "dpi1_drv.h"
 #include "dsi_drv.h"
 
+#include "disp_drv_platform.h"
+
 static DISP_INTERRUPT_CALLBACK_STRUCT DISP_CallbackArray[DISP_LCD_INTERRUPT_EVENTS_NUMBER + DISP_DSI_INTERRUPT_EVENTS_NUMBER + DISP_DPI_INTERRUPT_EVENTS_NUMBER];
 
 static void _DISP_InterruptCallbackProxy(DISP_INTERRUPT_EVENTS eventID)
@@ -77,8 +79,14 @@ DISP_STATUS DISP_SetInterruptCallback(DISP_INTERRUPT_EVENTS eventID, DISP_INTERR
         DISP_CallbackArray[offset].pFunc = pCBStruct->pFunc;
         DISP_CallbackArray[offset].pParam = pCBStruct->pParam;
 
-        DPI_CHECK_RET(DPI_SetInterruptCallback(_DISP_InterruptCallbackProxy));
-        DPI_CHECK_RET(DPI_EnableInterrupt(eventID));
+#if MTK_TVSTICK_HDMI_PATH
+		DPI_CHECK_RET(DPI1_SetInterruptCallback(_DISP_InterruptCallbackProxy));
+		DPI_CHECK_RET(DPI1_EnableInterrupt(eventID));
+#else
+		DPI_CHECK_RET(DPI_SetInterruptCallback(_DISP_InterruptCallbackProxy));
+		DPI_CHECK_RET(DPI_EnableInterrupt(eventID));
+#endif
+
     }
     else
     {

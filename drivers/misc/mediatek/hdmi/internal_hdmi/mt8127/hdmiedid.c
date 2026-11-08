@@ -34,7 +34,7 @@
 #include "hdmi_ctrl.h"
 
 #include "hdmiddc.h"
-#include "hdmiedid.h"
+#include <linux/hdmitx.h>
 #include "hdmihdcp.h"
 
 HDMI_SINK_AV_CAP_T _HdmiSinkAvCap;
@@ -66,14 +66,14 @@ static unsigned char _bEdidData2[256]=
 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x4c};
 
 
-static const unsigned char _cFsStr[][7]={{"32khz  "},
+const unsigned char _cFsStr[][7]={{"32khz  "},
                          {"44khz  "},
                          {"48khz  "},
                          {"88khz  "},
                          {"96khz  "},
                          {"176khz "},
                          {"192khz "}};
-static unsigned char  cDstStr[50];
+unsigned char  cDstStr[50];
 
 BOOL fgIsHdmiNoEDIDCheck(void)
 {
@@ -104,6 +104,8 @@ void vSetNoEdidChkInfo(void)
   _HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[bInx] = 0xff;
   _HdmiSinkAvCap.ui1_sink_dsd_ch_sampling[bInx] = 0xff;
   _HdmiSinkAvCap.ui1_sink_dst_ch_sampling[bInx] = 0xff;
+	_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[bInx] = 0xff;
+	_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[bInx] = 0xff;
   }
 
   for(bInx=0;bInx<7;bInx++)
@@ -151,6 +153,8 @@ void vClearEdidInfo(void)
   _HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[bInx] = 0;
   _HdmiSinkAvCap.ui1_sink_dsd_ch_sampling[bInx] = 0;
   _HdmiSinkAvCap.ui1_sink_dst_ch_sampling[bInx] = 0;
+	_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[bInx] = 0;
+	_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[bInx] = 0;
   }
 
   for(bInx=0;bInx<7;bInx++)
@@ -190,10 +194,11 @@ void vClearEdidInfo(void)
 
 void vShowEdidRawData(void)
 {
-  unsigned short bTemp,i,j,k;
+  unsigned short bTemp,i,j;
+  unsigned char *p;
 
   HDMI_EDID_FUNC();
- 
+
    for(bTemp=0; bTemp<2; bTemp++)
    {
    	 printk("===================================================================\n");
@@ -201,42 +206,37 @@ void vShowEdidRawData(void)
    	 printk("   | 00  01  02  03  04  05  06  07  08  09  0a  0b  0c  0d  0e  0f\n");
    	 printk("===================================================================\n");
    	 j = 	bTemp*EDID_BLOCK_LEN;
-     for(i=0; i< 8; i++)
-     {
-      if(((i*16)+j) < 0x10)
-        printk("0%x:  ", (i*16)+j);
-      else
-        printk("%x:  ", (i*16)+j);
-
-      for(k=0;k<16;k++)
-      {
-      	if(k==15)
-      	{
-      	  if((j+ (i*16+k))< EDID_SIZE)//for Buffer overflow error
-      	  {
-      	  if(_bEdidData[j+ (i*16+k)]> 0x0f)
-          printk("%2x\n", _bEdidData[j+ (i*16+k)]);
-          else
-          printk("0%x\n", _bEdidData[j+ (i*16+k)]);
-        }
-        }
-      	else
-      	{
-      	   if((j+ (i*16+k))< EDID_SIZE)//for Buffer overflow error
-      	   {
-        if(_bEdidData[j+ (i*16+k)]> 0x0f)
-          printk("%2x  ", _bEdidData[j+ (i*16+k)]);
-        else
-          printk("0%x  ", _bEdidData[j+ (i*16+k)]);
+     for (i = 0; i < 8; i++) {
+         p = &_bEdidData[j + i * 16];
+         printk("%02x:  %02x  %02x  %02x  %02x  %02x  %02x  %02x  %02x  %02x  %02x  "           "%02x  %02x  %02x  %02x  %02x  %02x\n",
+            i * 16 + j, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7],
+            p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
      }
-     }
-
-   }
-
-     }
-
    }
    printk("===================================================================\n");
+
+}
+
+
+void hdmi_show_def_info(void)
+{
+    unsigned int u4Res=0;
+
+    if(_HdmiSinkAvCap.b_sink_support_hdmi_mode)
+    {
+      HDMI_DEF_LOG("[hdmi][edid]is hdmi\n");
+    }
+    else
+    {
+      HDMI_DEF_LOG("[hdmi][edid]is dvi\n");
+    }
+
+    u4Res= (_HdmiSinkAvCap.ui4_sink_cea_ntsc_resolution| \
+           _HdmiSinkAvCap.ui4_sink_dtd_ntsc_resolution| \
+           _HdmiSinkAvCap.ui4_sink_cea_pal_resolution| \
+           _HdmiSinkAvCap.ui4_sink_dtd_pal_resolution);
+
+    HDMI_DEF_LOG("[hdmi][edid]res:%x,aud_dec:%x,pa:%x\n",u4Res,_HdmiSinkAvCap.ui2_sink_aud_dec,_HdmiSinkAvCap.ui2_sink_cec_address);
 
 }
 
@@ -247,7 +247,7 @@ unsigned char hdmi_fgreadedid(unsigned char i1noedid)
   unsigned short i;
   HDMI_EDID_FUNC();
 
-  if(i1noedid==INTERNAL_EDID) 
+  if(i1noedid==INTERNAL_EDID)
   {
     _fgHdmiNoEdidCheck = FALSE;
     vSetSharedInfo(SI_EDID_EXT_BLOCK_NO, 1);
@@ -267,7 +267,7 @@ unsigned char hdmi_fgreadedid(unsigned char i1noedid)
   {
     _fgHdmiNoEdidCheck = FALSE;
   }
-  
+
   // block 0 : standard EDID block, address 0x00 ~ 0x7F w/ device ID=0xA0
   bExtBlockNo = 0xff;
 
@@ -285,7 +285,7 @@ unsigned char hdmi_fgreadedid(unsigned char i1noedid)
         {
           if(bIdx == 4)
             return (0);
-  
+
         }
       }
     }
@@ -496,10 +496,10 @@ void vSetEdidChkError(void)
   _HdmiSinkAvCap.ui4_sink_dtd_ntsc_resolution = SINK_480P; //0x1fffff;
   _HdmiSinkAvCap.ui4_sink_dtd_pal_resolution = SINK_576P;//0x1fffff;
   _HdmiSinkAvCap.ui2_sink_colorimetry=0;
-  _HdmiSinkAvCap.ui4_sink_cea_ntsc_resolution = 0;
-  _HdmiSinkAvCap.ui4_sink_cea_pal_resolution = 0;
-  _HdmiSinkAvCap.ui4_sink_native_ntsc_resolution = 0;
-  _HdmiSinkAvCap.ui4_sink_native_pal_resolution = 0;
+  _HdmiSinkAvCap.ui4_sink_cea_ntsc_resolution = SINK_720P60;
+  _HdmiSinkAvCap.ui4_sink_cea_pal_resolution = SINK_720P60;
+  _HdmiSinkAvCap.ui4_sink_native_ntsc_resolution = SINK_720P60;
+  _HdmiSinkAvCap.ui4_sink_native_pal_resolution = SINK_720P60;
   _HdmiSinkAvCap.ui2_sink_vcdb_data = 0;
   _HdmiSinkAvCap.ui2_sink_aud_dec = 1; //PCM only
   _HdmiSinkAvCap.ui1_sink_dsd_ch_num = 0;
@@ -511,6 +511,8 @@ void vSetEdidChkError(void)
    _HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[bInx] = 0x0;
   _HdmiSinkAvCap.ui1_sink_dsd_ch_sampling[bInx] = 0;
   _HdmiSinkAvCap.ui1_sink_dst_ch_sampling[bInx] = 0;
+	_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[bInx] = 0;
+	_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[bInx] = 0;
   }
 
   for(bInx=0;bInx<7;bInx++)
@@ -549,7 +551,7 @@ void vParserCEADataBlock(unsigned char *prData, unsigned char bLen)
   unsigned char i,bTemp14=1,bDataTemp=1;
   unsigned int ui4Temp=0;
   unsigned int u23D_MASK_ALL;
-  
+
   HDMI_EDID_FUNC();
 
   while(bLen)
@@ -838,9 +840,22 @@ void vParserCEADataBlock(unsigned char *prData, unsigned char bLen)
 
         bAudCode = (*(prData+bLengthSum+1)&0x78)>>3;//get audio code
 
-        if((bAudCode>=AVD_LPCM)&& bAudCode<= AVD_WMA)
-        {
-           _HdmiSinkAvCap.ui2_sink_aud_dec |= 	(1<<(bAudCode-1));// PCM:1 HDMI_SINK_AUDIO_DEC_LPCM AC3:2 HDMI_SINK_AUDIO_DEC_AC3
+	if (bAudCode == AVD_DOLBY_PLUS) { /* AVD_DOLBY_PLUS */
+		bPcmChNum = (*(prData + bLengthSum + 1) & 0x07) + 1;
+			if (bPcmChNum >= 2) {
+				_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[bPcmChNum
+				    - 2] = (*(prData + bLengthSum + 2) & 0x7f);
+			}
+	}
+
+	if ((*(prData + bLengthSum + 3) == 0x1) && (bAudCode == AVD_DOLBY_PLUS))
+		bAudCode = AVD_DOLBY_ATMOS;
+
+	if ((bAudCode >= AVD_LPCM)&& bAudCode <= AVD_WMA) {
+		_HdmiSinkAvCap.ui2_sink_aud_dec |= 	(1<<(bAudCode-1));/* PCM:1 HDMI_SINK_AUDIO_DEC_LPCM AC3:2 HDMI_SINK_AUDIO_DEC_AC3 */
+		/* must support dolby plus if support atmos according to spec */
+		if (bAudCode == AVD_DOLBY_ATMOS)
+			_HdmiSinkAvCap.ui2_sink_aud_dec |= (1 << (AVD_DOLBY_PLUS - 1));
         }
 
 
@@ -854,6 +869,14 @@ void vParserCEADataBlock(unsigned char *prData, unsigned char bLen)
           }
 
         }
+
+	if (bAudCode == AVD_AC3) {       /* AVD_AC3 */
+		bPcmChNum = (*(prData + bLengthSum + 1) & 0x07) + 1;
+		if (bPcmChNum >= 2) {
+			_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[bPcmChNum - 2] =
+			    (*(prData + bLengthSum + 2) & 0x7f);
+		}
+	}
 
         if(bAudCode == AVD_DST) // DST
         {
@@ -1245,6 +1268,19 @@ void vParserCEADataBlock(unsigned char *prData, unsigned char bLen)
   _HdmiSinkAvCap.ui1_sink_dsd_ch_sampling[1]|= _HdmiSinkAvCap.ui1_sink_dsd_ch_sampling[2];
   _HdmiSinkAvCap.ui1_sink_dsd_ch_sampling[0]|= _HdmiSinkAvCap.ui1_sink_dsd_ch_sampling[1];
 
+  _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[5] |= _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[6];
+  _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[4] |= _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[5];
+  _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[3] |= _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[4];
+  _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[2] |= _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[3];
+  _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[1] |= _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[2];
+  _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[0] |= _HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[1];
+
+  _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[5] |= _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[6];
+  _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[4] |= _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[5];
+  _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[3] |= _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[4];
+  _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[2] |= _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[3];
+  _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[1] |= _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[2];
+  _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[0] |= _HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[1];
 
   if(_HdmiSinkAvCap.ui2_edid_chksum_and_audio_sup & SINK_EXT_BLK_CHKSUM_ERR)//2007/2/12 for av output chksum error
   {
@@ -1348,12 +1384,12 @@ void vParserExtEDIDState(unsigned char *prEdid)
        }
        else if(*(prEdid+EDID_BLOCK_LEN+bTemp*EDID_BLOCK_LEN)==0xF0)
        {
- 
+
        }
      }
      else
      {
-   
+
      }
     }
   }
@@ -1370,7 +1406,7 @@ void hdmi_checkedid(unsigned char i1noedid)
 
    for(i=0;i<0x10;i++)
     _ui4First_16_VIC[i] =0;
-   
+
    _ui4First_16_NTSC_VIC =0;
    _ui4First_16_PAL_VIC=0;
    _u4i_3D_VIC=0;
@@ -1387,7 +1423,7 @@ void hdmi_checkedid(unsigned char i1noedid)
       {
         vSetSharedInfo(SI_EDID_PARSING_RESULT, TRUE);
         _HdmiSinkAvCap.b_sink_edid_ready =TRUE;
-
+        HDMI_DEF_LOG("[hdmi][edid]parser ok\n");
         break;
       }
 
@@ -1407,7 +1443,7 @@ void hdmi_checkedid(unsigned char i1noedid)
 
     if(bTemp == bRetryCount-1)
     {
-      if(i4SharedInfo(SI_HDMI_RECEIVER_STATUS)== HDMI_PLUG_IN_ONLY) 
+      if(i4SharedInfo(SI_HDMI_RECEIVER_STATUS)== HDMI_PLUG_IN_ONLY)
         vClearEdidInfo();
       else if(i4SharedInfo(SI_HDMI_RECEIVER_STATUS)== HDMI_PLUG_IN_AND_SINK_POWER_ON)
         vSetEdidChkError();
@@ -1416,7 +1452,11 @@ void hdmi_checkedid(unsigned char i1noedid)
       {
         vSetNoEdidChkInfo();
       }
-
+          if(hdmi_check_edid_header() == 0)
+          {
+              HDMI_DEF_LOG("[hdmi]read edid err,force to err edid\n");
+              vSetEdidChkError();
+          }
       return;
     }
     }
@@ -1431,6 +1471,19 @@ void hdmi_checkedid(unsigned char i1noedid)
     vSetNoEdidChkInfo();
   }
 
+    if(hdmi_check_edid_header() == 0)
+    {
+        HDMI_DEF_LOG("[hdmi]edid err,force to err edid 1\n");
+        vSetEdidChkError();
+    }
+
+    if (hdmidrv_log_on&hdmiedidlog)
+    {
+        vShowEdidRawData();
+        vShowEdidInformation();
+    }
+    else
+    hdmi_show_def_info();
 }
 
 unsigned char vCheckPcmBitSize(unsigned char ui1ChNumInx)
@@ -1645,7 +1698,8 @@ void vShowEdidInformation(void)
     printk("[HDMI]SUPPORT SACD DST Decode \n");
     if(_HdmiSinkAvCap.ui2_sink_aud_dec & HDMI_SINK_AUDIO_DEC_WMA)
     printk("[HDMI]SUPPORT  WMA Decode \n");
-
+	if (_HdmiSinkAvCap.ui2_sink_aud_dec & HDMI_SINK_AUDIO_DEC_ATMOS)
+		printk("[HDMI]SUPPORT  ATMOS Decode\n");
     if(_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[0]!=0)
     {
 
@@ -1677,7 +1731,7 @@ void vShowEdidInformation(void)
        memcpy(&cDstStr[0+bInx*7], &_cFsStr[bInx][0], 7);
       }
     }
-    printk("[HDMI]SUPPORT PCM Max 6CH Fs is: %s \n", &cDstStr[0]);
+    printk("[HDMI]SUPPORT PCM Max 6CH, Fs is: %s \n", &cDstStr[0]);
 
     }
 
@@ -1694,7 +1748,7 @@ void vShowEdidInformation(void)
        memcpy(&cDstStr[0+bInx*7], &_cFsStr[bInx][0], 7);
       }
     }
-    printk("[HDMI]SUPPORT PCM Max 7CH Fs is: %s \n", &cDstStr[0]);
+    printk("[HDMI]SUPPORT PCM Max 7CH, Fs is: %s \n", &cDstStr[0]);
 
     }
 
@@ -1714,6 +1768,126 @@ void vShowEdidInformation(void)
     printk("[HDMI]SUPPORT PCM Max 8CH, FS is: %s \n", &cDstStr[0]);
 
     }
+
+	if (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[0] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[0] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT AC3 Max 2CH, Fs is: %s\n", &cDstStr[0]);
+
+	}
+
+
+	if (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[4] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[4] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT AC3 Max 6CH, Fs is: %s\n", &cDstStr[0]);
+
+	}
+
+
+	if (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[5] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[5] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT AC3 Max 7CH, Fs is: %s\n", &cDstStr[0]);
+
+	}
+
+
+	if (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[6] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[6] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT AC3 Max 8CH, FS is: %s\n", &cDstStr[0]);
+
+	}
+
+
+	if (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[0] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[0] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT E-AC3 Max 2CH, Fs is: %s\n", &cDstStr[0]);
+	}
+
+
+	if (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[4] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[4] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT E-AC3 Max 6CH, Fs is: %s\n", &cDstStr[0]);
+
+	}
+
+
+	if (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[5] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[5] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT E-AC3 Max 7CH, Fs is: %s\n", &cDstStr[0]);
+
+	}
+
+
+	if (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[6] != 0) {
+
+		for (bInx = 0; bInx < 50; bInx++)
+			memcpy(&cDstStr[0 + bInx], " ", 1);
+
+		for (bInx = 0; bInx < 7; bInx++) {
+			if ((_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[6] >> bInx) & 0x01) {
+				memcpy(&cDstStr[0 + bInx * 7], &_cFsStr[bInx][0], 7);
+			}
+		}
+		printk("[HDMI]SUPPORT E-AC3 Max 8CH, FS is: %s\n", &cDstStr[0]);
+
+	}
 
     if(_HdmiSinkAvCap.ui1_sink_spk_allocation & SINK_AUDIO_FL_FR)
     printk("[HDMI]Speaker FL/FR allocated \n");
@@ -1760,10 +1934,12 @@ void vShowEdidInformation(void)
 
 }
 
+extern size_t hdmi_hotplugstate;
 void hdmi_AppGetEdidInfo(HDMI_EDID_INFO_T *pv_get_info)
 {
-   HDMI_EDID_FUNC();
-	
+	unsigned int i;
+	HDMI_EDID_FUNC();
+
    pv_get_info->ui4_ntsc_resolution = (_HdmiSinkAvCap.ui4_sink_cea_ntsc_resolution | _HdmiSinkAvCap.ui4_sink_dtd_ntsc_resolution);
    pv_get_info->ui4_pal_resolution =(_HdmiSinkAvCap.ui4_sink_cea_pal_resolution | _HdmiSinkAvCap.ui4_sink_dtd_pal_resolution);
    pv_get_info->ui4_sink_native_ntsc_resolution =_HdmiSinkAvCap.ui4_sink_native_ntsc_resolution;
@@ -1777,11 +1953,35 @@ void hdmi_AppGetEdidInfo(HDMI_EDID_INFO_T *pv_get_info)
    pv_get_info->ui2_sink_colorimetry =_HdmiSinkAvCap.ui2_sink_colorimetry;
    pv_get_info->ui1_sink_rgb_color_bit = _HdmiSinkAvCap.e_sink_rgb_color_bit;
    pv_get_info->ui1_sink_ycbcr_color_bit  = _HdmiSinkAvCap.e_sink_ycbcr_color_bit;
-   pv_get_info->ui2_sink_aud_dec = _HdmiSinkAvCap.ui2_sink_aud_dec;
+   pv_get_info->ui2_sink_aud_dec = _HdmiSinkAvCap.ui2_sink_aud_dec | HDMI_SINK_AUDIO_DEC_LPCM;
    pv_get_info->ui1_sink_is_plug_in =_stAvdAVInfo.b_hotplug_state;
+   if(hdmi_hotplugstate == HDMI_STATE_HOT_PLUGIN_AND_POWER_ON)
+   	pv_get_info->ui1_sink_is_plug_in = 1;
+   else
+   	pv_get_info->ui1_sink_is_plug_in = 0;
    pv_get_info->ui4_hdmi_pcm_ch_type = ((_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[0])|(_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[4]<<8)|(_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[6]<<16));
    pv_get_info->ui4_hdmi_pcm_ch3ch4ch5ch7_type = ((_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[1])|(_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[2]<<8)|(_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[3]<<16)|(_HdmiSinkAvCap.ui1_sink_pcm_ch_sampling[5]<<24));
-   
+
+	pv_get_info->ui4_hdmi_ac3_ch_type =
+	    ((_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[0]) |
+	     (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[4] << 8) |
+	     (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[6] << 16));
+	pv_get_info->ui4_hdmi_ac3_ch3ch4ch5ch7_type =
+	    ((_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[1]) |
+	     (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[2] << 8) |
+	     (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[3] << 16)|
+	     (_HdmiSinkAvCap.ui1_sink_ac3_ch_sampling[5] << 24));
+	pv_get_info->ui4_hdmi_ec3_ch_type =
+	    ((_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[0]) |
+	     (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[4] << 8) |
+	     (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[6] << 16));
+	pv_get_info->ui4_hdmi_ec3_ch3ch4ch5ch7_type =
+	    ((_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[1]) |
+	     (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[2] << 8) |
+	     (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[3] << 16) |
+	     (_HdmiSinkAvCap.ui1_sink_ec3_ch_sampling[5] << 24));
+
+
    pv_get_info->ui1_sink_i_latency_present = _HdmiSinkAvCap.ui1_sink_i_latency_present;
    pv_get_info->ui1_sink_p_audio_latency = _HdmiSinkAvCap.ui1_sink_p_audio_latency;
    pv_get_info->ui1_sink_p_video_latency = _HdmiSinkAvCap.ui1_sink_p_video_latency;
@@ -1794,7 +1994,12 @@ void hdmi_AppGetEdidInfo(HDMI_EDID_INFO_T *pv_get_info)
    pv_get_info->ui1_Display_Horizontal_Size=_HdmiSinkAvCap.ui1_Display_Horizontal_Size;
    pv_get_info->ui1_Display_Vertical_Size =_HdmiSinkAvCap.ui1_Display_Vertical_Size;
    pv_get_info->ui2_sink_cec_address = _HdmiSinkAvCap.ui2_sink_cec_address;
+   HDMI_DEF_LOG("[edid]to app,ui1_sink_is_plug_in:%d,ntsc:%x,pal:%x,pa:%x\n",
+   	pv_get_info->ui1_sink_is_plug_in,pv_get_info->ui4_ntsc_resolution,pv_get_info->ui4_pal_resolution,pv_get_info->ui2_sink_cec_address);
+   HDMI_DEF_LOG("[edid]to app,aud dec:%x,pcm ch:%x\n",pv_get_info->ui2_sink_aud_dec,pv_get_info->ui4_hdmi_pcm_ch_type);
 
+   for (i = 0; i < 256; i++)
+	pv_get_info->ui1rawdata_edid[i] = _bEdidData[i];
 }
 unsigned char hdmi_check_edid_header(void)
 {

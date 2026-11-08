@@ -18,6 +18,10 @@
 #include "ddp_ovl.h"
 #include "debug.h"
 #include "ddp_debug.h"
+#include "disp_drv_platform.h"
+#if MTK_TVSTICK_HDMI_PATH
+#include <linux/hdmitx.h>
+#endif
 
 
 int Disp_Ovl_Engine_GetInstance(DISP_OVL_ENGINE_INSTANCE_HANDLE *pHandle,OVL_INSTANCE_MODE mode)
@@ -204,6 +208,11 @@ int Disp_Ovl_Engine_Set_layer_info(DISP_OVL_ENGINE_INSTANCE_HANDLE handle, struc
     unsigned int layerpitch;
     unsigned int layerbpp;
     OVL_CONFIG_STRUCT *ovl_config_tmp = &disp_ovl_engine.Instance[handle].cached_layer_config[layerInfo->layer_id];
+#if MTK_TVSTICK_HDMI_PATH
+    HDMI_VIDEO_RESOLUTION res =  hdmi_get_resolution();
+    unsigned hdmi_w = hdmi_get_width(res);
+    unsigned hdmi_h = hdmi_get_height(res);
+#endif
 
     if (handle >= OVL_ENGINE_INSTANCE_MAX_INDEX)
         return OVL_ERROR;
@@ -217,6 +226,13 @@ int Disp_Ovl_Engine_Set_layer_info(DISP_OVL_ENGINE_INSTANCE_HANDLE handle, struc
 
     if(layerInfo->layer_enable)
     {
+#if MTK_TVSTICK_HDMI_PATH
+        if (layerInfo->tgt_width > hdmi_w || layerInfo->tgt_height > hdmi_h)
+        {
+            layerInfo->layer_enable = 0;
+            printk("ovl layer source size abnormal %d\n", layerInfo->layer_id);
+        }
+#endif
 
         switch (layerInfo->src_fmt)
         {
@@ -593,8 +609,10 @@ int Disp_Ovl_Engine_Wait_Overlay_Complete(DISP_OVL_ENGINE_INSTANCE_HANDLE handle
 #endif
 	while (loopNum) {
 	/*no need to wait when suspend state*/
+#if !MTK_DISP_DIRECTLINK
 		if (is_early_suspended)
 		break;
+#endif
 		wait_ret = wait_event_interruptible_timeout(disp_ovl_complete_wq,
 							 disp_ovl_engine.Instance[handle].fgCompleted, subTimeout);
 

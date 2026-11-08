@@ -13,6 +13,7 @@
 #include "ddp_cmdq_sec.h"
 
 #include <mach/mt_irq.h>
+#include "cmdq_dma_pool.h"
 
 #ifdef __CMDQ_SECURE_PATH_SUPPORT__
 #include "trustzone/tz_cross/tz_cmdq.h"
@@ -119,7 +120,7 @@ static long cmdq_proc_unlocked_ioctl(struct file *file, unsigned int cmd, unsign
                 return -EFAULT;
             }
 
-            command.scenario   = cParams.scenario; 
+            command.scenario   = CMDQ_SCENARIO_MDP_STREAM_BITBLT;
             command.priority   = cParams.priority; 
             command.engineFlag = cParams.engineFlag; 
             command.pVABase  = cParams.pFrameBaseSW; 
@@ -129,6 +130,8 @@ static long cmdq_proc_unlocked_ioctl(struct file *file, unsigned int cmd, unsign
             command.secData.portListLength = 0; 
             command.secData.addrList = NULL;
             command.secData.portList = NULL;
+			command.secData.srcHandleForHDCP = 0;
+			command.secData.dstHandleForHDCP = 0;
 
             if (cmdqSubmitTask(&command))
             {
@@ -144,7 +147,7 @@ static long cmdq_proc_unlocked_ioctl(struct file *file, unsigned int cmd, unsign
                 return -EFAULT;
             }
 
-            command.scenario   = csParams.command.scenario; 
+            command.scenario   = CMDQ_SCENARIO_MDP_STREAM_BITBLT;
             command.priority   = csParams.command.priority; 
             command.engineFlag = csParams.command.engineFlag; 
             command.pVABase  = csParams.command.pFrameBaseSW; 
@@ -154,6 +157,11 @@ static long cmdq_proc_unlocked_ioctl(struct file *file, unsigned int cmd, unsign
             command.secData.portListLength = csParams.metadata.portListLength; 
             command.secData.addrList = csParams.metadata.addrList;
             command.secData.portList = csParams.metadata.portList;
+
+#ifdef CONFIG_MTK_HDMI_HDCP_SUPPORT
+			command.secData.srcHandleForHDCP = csParams.metadata.srcHandleForHDCP;
+			command.secData.dstHandleForHDCP = csParams.metadata.dstHandleForHDCP;
+#endif
             
             if (cmdqSubmitTask(&command))
             {
@@ -293,7 +301,11 @@ static int cmdq_proc_open(struct inode *inode, struct file *file)
     secCtxHandle = cmdq_sec_acquire_context_handle(current->tgid); 
 
     //Allocate and initialize private data
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+	file->private_data = cmdq_alloc_dma_pool(sizeof(cmdq_proc_node_struct), NULL);
+#else
     file->private_data = kmalloc(sizeof(cmdq_proc_node_struct), GFP_ATOMIC);
+#endif
     if(NULL == file->private_data)
     {
         DISP_MSG("Not enough entry for DDP open operation\n");
@@ -342,7 +354,11 @@ static int cmdq_proc_release(struct inode *inode, struct file *file)
 
     if(NULL != file->private_data)
     {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+		cmdq_free_dma_pool(file->private_data);
+#else
         kfree(file->private_data);
+#endif
         file->private_data = NULL;
     }
     
@@ -1129,7 +1145,9 @@ void cmdq_deinit_procfs(void)
         gCmdqProcEntry = NULL;
     }
 }
-
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+extern struct device *disp_device;
+#endif
 void cmdqInitialize()
 {
     //u_long                flags;
@@ -1140,6 +1158,9 @@ void cmdqInitialize()
     int32_t               index;
     struct proc_dir_entry *pEntry;
 
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+	cmdq_dma_pool_initialize(disp_device);
+#else
     pVABase = dma_alloc_coherent(NULL, CMDQ_MAX_DMA_BUF_SIZE, &MVABase, GFP_ATOMIC);
     if(NULL == pVABase)
     {
@@ -1149,6 +1170,7 @@ void cmdqInitialize()
 
     memset(pVABase, 0, CMDQ_MAX_DMA_BUF_SIZE);
     CMDQ_MSG("Command buffer VA:%x PA:%x \n", (uint32_t)pVABase, MVABase);
+#endif
 
     for (index = 0; index < CMDQ_MAX_THREAD_COUNT; index++)
     {
@@ -1176,6 +1198,16 @@ void cmdqInitialize()
     {
         INIT_LIST_HEAD(&(pTask[index].listEntry));
 
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+		pVABase = cmdq_alloc_dma_pool(CMDQ_MAX_BLOCK_SIZE, &MVABase);
+		if (pVABase == NULL) {
+			CMDQ_AEE("CMDQ", "cmdq1111 dmapool Allocate command buffer failed, size[%d]\n", CMDQ_MAX_BLOCK_SIZE);
+			return;
+		}
+
+		memset(pVABase, 0, CMDQ_MAX_BLOCK_SIZE);
+#endif
+
         pTask[index].thread  = CMDQ_INVALID_THREAD; 
         pTask[index].taskType  = TASK_TYPE_FIXED;
         pTask[index].taskState = TASK_STATE_IDLE;
@@ -1184,8 +1216,10 @@ void cmdqInitialize()
         pTask[index].bufSize   = CMDQ_MAX_BLOCK_SIZE;
         list_add_tail(&(pTask[index].listEntry), &gCmdqFreeTask);
 
+#ifndef CONFIG_CMDQ_DMAPOOL_SUPPORT
         pVABase += CMDQ_MAX_BLOCK_SIZE;
         MVABase += CMDQ_MAX_BLOCK_SIZE;
+#endif
     }
 
     // init predump default value
@@ -1311,13 +1345,21 @@ void cmdq_release_task_sec_data_impl(TaskStruct *pTask)
 {
     if(pTask->secData.addrList)
     {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+		cmdq_free_dma_pool(pTask->secData.addrList);
+#else
         kfree(pTask->secData.addrList); 
+#endif
         pTask->secData.addrList = NULL; 
     }
     
     if(pTask->secData.portList)
     {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+		cmdq_free_dma_pool(pTask->secData.portList);
+#else
         kfree(pTask->secData.portList); 
+#endif
         pTask->secData.portList = NULL; 
     }
 }
@@ -1348,8 +1390,13 @@ void cmdq_release_task(TaskStruct *pTask)
         }
         else
         {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+			cmdq_free_dma_pool(pTask->pVABase);
+			cmdq_free_dma_pool(pTask);
+#else
             dma_free_coherent(NULL, pTask->bufSize, pTask->pVABase, pTask->MVABase);
             kfree(pTask);
+#endif
         }
     }
 
@@ -1402,14 +1449,26 @@ static TaskStruct* cmdq_find_free_task(uint32_t blockSize)
 
         // there is no free satic allocated task, try to allocate new one, and CMD buffer
         spin_unlock_irqrestore(&gCmdqTaskLock, flags); 
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+		pTask = (TaskStruct*)cmdq_alloc_dma_pool(sizeof(TaskStruct), NULL);
+#else
         pTask = (TaskStruct*)kmalloc(sizeof(TaskStruct), GFP_KERNEL);
+#endif
         
         if (NULL != pTask)
         {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+			pVABase = cmdq_alloc_dma_pool(blockSize + CMDQ_EXTRA_MARGIN, &MVABase);
+#else
             pVABase = dma_alloc_coherent(NULL, blockSize + CMDQ_EXTRA_MARGIN, &MVABase, GFP_KERNEL);
+#endif
             if (NULL == pVABase)
             {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+		cmdq_free_dma_pool(pTask);
+#else
                 kfree(pTask);
+#endif
                 pTask = NULL;
                 CMDQ_ERR("Can't allocate DMA buffer\n");
             }
@@ -1431,6 +1490,143 @@ static TaskStruct* cmdq_find_free_task(uint32_t blockSize)
 
     return pTask;
 }
+
+bool cmdq_core_check_subsys_id_valid(u32 subsys_id)
+{
+	switch (subsys_id) {
+	case 0: /* 0x1400XXXX */
+	case 1:	/* 0x1500XXXX */
+		return true;
+	default:
+		/* check error */
+		CMDQ_ERR("subsys ID:%d check error\n", subsys_id);
+	}
+	return false;
+}
+
+bool cmdq_core_check_value_gpr_valid(u32 value_gpr)
+{
+#if 0
+	switch (value_gpr) {
+	case CMDQ_DATA_REG_JPEG:
+	case CMDQ_DATA_REG_PQ_COLOR:
+	case CMDQ_DATA_REG_2D_SHARPNESS_0:
+	case CMDQ_DATA_REG_2D_SHARPNESS_1:
+	case CMDQ_DATA_REG_DEBUG:
+		return true;
+	default:
+		return false;
+	}
+#endif
+	/* for 8127 MDP.
+	** no register backup function.
+	** no need to use GPR register.
+	*/
+	return false;
+}
+
+bool cmdq_core_check_addr_gpr_valid(u32 addr_gpr)
+{
+	#if 0
+	switch (addr_gpr) {
+	case CMDQ_DATA_REG_JPEG_DST:
+	case CMDQ_DATA_REG_PQ_COLOR_DST:
+	case CMDQ_DATA_REG_2D_SHARPNESS_0_DST:
+	case CMDQ_DATA_REG_2D_SHARPNESS_1_DST:
+	case CMDQ_DATA_REG_DEBUG_DST:
+		return true;
+	default:
+		return false;
+	}
+	#endif
+	/* for 8127 MDP.
+	** no register backup function.
+	** no need to use GPR register.
+	*/
+	return false;
+}
+
+bool cmdq_core_check_instruction_valid(struct TaskStruct *pTask, u64 instruction)
+{
+	u32 op = instruction >> 56;	/* 56 ~ 63 */
+	u32 argA = (instruction >> 32) & 0x00FFFFFF; /* 32 ~ 55 */
+	u32 argB = instruction & 0xFFFFFFFF; /* 0 ~ 31 */
+	u32 subsys_id = argA >> 22; /* 54 ~ 55 */
+	u32 offset = (argA & 0x3FFFFF); /* 32 ~ 53 */
+
+
+	switch (op) {
+	case CMDQ_CODE_READ:
+		/* no read operation in 8127.
+		** always check fail.
+		*/
+		break;
+	case CMDQ_CODE_MOVE:
+		/* allow mask instruction
+		** argA = 0
+		** argB: no limit.
+		**	*m_pCommand++ = argB;
+		**	*m_pCommand++ = CMDQ_OP_MOVE << 24;
+		*/
+		if (argA == 0) {
+			/* check OK */
+			return true;
+		}
+
+		break;
+	case CMDQ_CODE_WRITE:
+		/* allow write value to mdp related subsys register
+		** argA = subsysID + offset: subsysID should valid (mdp related subsys ID).
+		** argB: not limit.
+		**	*m_pCommand++ = argB;
+		**	*m_pCommand++ = (CMDQ_OP_WRITE << 24) | (offset & 0x3fffff) | ((subsysID & 0x3)<< 22);
+		*/
+		if (cmdq_core_check_subsys_id_valid(subsys_id)) {
+			/* check OK */
+			return true;
+		}
+		break;
+	case CMDQ_CODE_JUMP:
+		/* only allow JUMP + 8
+		** argA = 0
+		** argB = 8
+		*/
+		if ((argA == 0) && (argB == 8))
+			return true;
+		break;
+	case CMDQ_CODE_POLL:
+	case CMDQ_CODE_WFE:
+	case CMDQ_CODE_EOC:
+		return true;
+	default:
+		return false;
+	}
+
+	CMDQ_ERR("check fail: op[0x%x] argA[0x%x] subsysID[0x%x] offset[0x%x] argB[0x%x]\n", op, argA, subsys_id, offset, argB);
+	return false;
+}
+
+
+/*
+** return true for valid. false for invalid
+*/
+bool cmdq_core_check_command_valid(struct TaskStruct *pTask, u32 *pVaBase, u32 commandSize)
+{
+	u32 i = 0; /* scan inst buffer bytes */
+	u64 *pBase = (u64 *)pVaBase;
+
+	if (commandSize % 8 != 0) {
+		CMDQ_ERR("commandSize: %d not 8 align\n", commandSize);
+		return false;
+	}
+
+	for (i = 0; (i * 8) < commandSize; i++) {
+		if (!cmdq_core_check_instruction_valid(pTask, pBase[i]))
+			return false;
+	}
+	return true;
+}
+
 
 TaskStruct* cmdq_acquire_task(cmdqCommandStruct *pCommandDesc)
 {
@@ -1467,7 +1663,11 @@ TaskStruct* cmdq_acquire_task(cmdqCommandStruct *pCommandDesc)
 
         if(0 < pCommandDesc->secData.addrListLength)
         {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+			pAddrList = cmdq_alloc_dma_pool(secAddrListLength_byte, NULL);
+#else
             pAddrList = kmalloc(secAddrListLength_byte , GFP_KERNEL);
+#endif
             if(NULL == pAddrList)
             {
                 status = -3010;
@@ -1476,7 +1676,11 @@ TaskStruct* cmdq_acquire_task(cmdqCommandStruct *pCommandDesc)
         }
         if(0 < pCommandDesc->secData.portListLength)
         {
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+			pPortList = cmdq_alloc_dma_pool(secPortListLength_byte , NULL);
+#else
             pPortList = kmalloc(secPortListLength_byte , GFP_KERNEL);
+#endif
             if(NULL == pPortList)
             {
                 status = -3020;
@@ -1502,6 +1706,8 @@ TaskStruct* cmdq_acquire_task(cmdqCommandStruct *pCommandDesc)
         pTask->secData.portListLength = pCommandDesc->secData.portListLength;
         pTask->secData.addrList = pAddrList;
         pTask->secData.portList = pPortList; 
+		pTask->secData.srcHandleForHDCP = pCommandDesc->secData.srcHandleForHDCP;
+		pTask->secData.dstHandleForHDCP = pCommandDesc->secData.dstHandleForHDCP;
 
         // profiling data
         memset(&(pTask->trigger), 0x0, sizeof(struct timeval));
@@ -1514,6 +1720,13 @@ TaskStruct* cmdq_acquire_task(cmdqCommandStruct *pCommandDesc)
             status = -3000; 
             break;
         }
+
+		/* check instruction valid. */
+		if (!cmdq_core_check_command_valid(pTask, pTask->pVABase, pTask->blockSize)) {
+			CMDQ_ERR("check inst fail\n");
+			status = -3001;
+			break;
+		}
         
         // continue to copy metadata
         if((0 < pCommandDesc->secData.addrListLength) && 
@@ -3587,6 +3800,9 @@ int32_t cmdqSubmitTask(cmdqCommandStruct *pCommandDesc)
 void cmdqDeInitialize()
 {
     TaskStruct *pTask = NULL;
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+	int i = 0;
+#endif
 
     // secure path deinit
     cmdqSecDeInitialize(); 
@@ -3596,7 +3812,14 @@ void cmdqDeInitialize()
 
     pTask = &(gCmdqContext.taskInfo[0]);
 
+#ifdef CONFIG_CMDQ_DMAPOOL_SUPPORT
+	for(i = 0; i < CMDQ_MAX_FIXED_TASK; i++) {
+		cmdq_free_dma_pool(pTask[i].pVABase);
+	}
+	cmdq_dma_pool_deinitialize();
+#else
     dma_free_coherent(NULL, CMDQ_MAX_DMA_BUF_SIZE, pTask->pVABase, pTask->MVABase);
+#endif
 }
 
 void cmdqResetHWEngine(const TaskStruct *pTask, int32_t thread)

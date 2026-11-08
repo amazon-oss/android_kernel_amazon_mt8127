@@ -40,8 +40,12 @@
 
 #ifdef CONFIG_AMAZON_METRICS_LOG
 #include <linux/metricslog.h>
+#include <linux/vmalloc.h>
 #ifndef THERMO_METRICS_STR_LEN
 #define THERMO_METRICS_STR_LEN 128
+static struct timespec   prev_time[THERMAL_MAX_TRIPS];
+static struct timespec   trip_start_time[THERMAL_MAX_TRIPS];
+#define VIRTUAL_SENSOR "virtual_sensor"
 #endif
 #endif
 
@@ -347,7 +351,7 @@ static void handle_critical_trips(struct thermal_zone_device *tz,
 	long trip_temp;
 #ifdef CONFIG_AMAZON_METRICS_LOG
 	char *thermal_metric_prefix = "thermzone:def:monitor=1;CT;1";
-	char buf[THERMO_METRICS_STR_LEN];
+	char *buf = NULL;
 #endif
 
 	tz->ops->get_trip_temp(tz, trip, &trip_temp);
@@ -379,10 +383,16 @@ static void handle_critical_trips(struct thermal_zone_device *tz,
 			dev_err(&tz->device, "Thermal zone: %s reaching critial", tz->type);
 #endif
 #ifdef CONFIG_AMAZON_METRICS_LOG
+	buf = vmalloc(THERMO_METRICS_STR_LEN * sizeof(char));
+	if(buf){
 		snprintf(buf, THERMO_METRICS_STR_LEN,
 			"%s,thermal_temp=%d;CT;1,thermal_caught_shutdown=1;CT;1:NR",
 			thermal_metric_prefix, tz->temperature / 1000);
 		log_to_metrics(ANDROID_LOG_INFO, "ThermalEvent", buf);
+		vfree(buf);
+	} else {
+		printk("allocate thermal metrics buffer error: ENOMEM!\n");
+	}
 #endif
 		dev_emerg(&tz->device,
 			  "%s: critical temperature reached(%d C),shutting down\n",
@@ -395,8 +405,12 @@ static void handle_thermal_trip(struct thermal_zone_device *tz, int trip)
 {
 	enum thermal_trip_type type;
 #ifdef CONFIG_AMAZON_METRICS_LOG
-	char *thermal_metric_prefix = "thermzone:def:monitor=1;CT;1";
-	char buf[THERMO_METRICS_STR_LEN];
+	char *thermal_metric_prefix = "thermzone:def";
+	char *buf = NULL;
+	long trip_temp;
+	int prev_trip;
+	struct timespec delta_time;
+	struct timespec current_time;
 #endif
 
 	tz->ops->get_trip_type(tz, trip, &type);
@@ -407,12 +421,74 @@ static void handle_thermal_trip(struct thermal_zone_device *tz, int trip)
 		handle_non_critical_trips(tz, trip, type);
 
 #ifdef CONFIG_AMAZON_METRICS_LOG
-	if (type == THERMAL_TRIP_PASSIVE || type == THERMAL_TRIP_HOT) {
-		snprintf(buf, THERMO_METRICS_STR_LEN,
-			"%s,thermal_zone=%d;CT;1,temp=%d;DV;1:NR",
-			thermal_metric_prefix, trip, tz->temperature / 1000);
-		log_to_metrics(ANDROID_LOG_INFO, "ThermalEvent", buf);
+	tz->ops->get_trip_temp(tz, trip, &trip_temp);
+	/* If we have not crossed the trip_temp, we do not care. */
+
+	buf = vmalloc(THERMO_METRICS_STR_LEN * sizeof(char));
+	if(!buf){
+		printk("allocate thermal metrics buffer error: ENOMEM!\n");
 	}
+	if (tz->temperature >= trip_temp) {
+#if 0
+		snprintf(buf, THERMO_METRICS_STR_LEN,
+			"%s:%s_trip_%d=%d;CT;1:NR",
+			thermal_metric_prefix, tz->type,
+			trip,
+			tz->temperature / 1000);
+		log_to_metrics(ANDROID_LOG_INFO, "ThermalEvent", buf);
+#endif
+		if (!strcmp(tz->type, VIRTUAL_SENSOR)) {
+			/* We are in upward trend */
+
+			if (trip_start_time[trip].tv_sec == 0) {
+				pr_notice("ThermalEvent: enter trip%d, curr_temp:%d\n", trip,
+								tz->temperature);
+				getnstimeofday(&trip_start_time[trip]);
+				if (trip != 0) {
+					prev_trip = trip - 1;
+					getnstimeofday(&current_time);
+					delta_time = timespec_sub(current_time,
+									trip_start_time[prev_trip]);
+					trip_start_time[prev_trip].tv_sec = -1;
+					pr_notice("ThermalEvent: exit trip%d, duration %ld s\n",
+									prev_trip,
+									delta_time.tv_sec);
+					if(buf){
+						snprintf(buf, THERMO_METRICS_STR_LEN,
+							"thermzone:def:Throttle_%s_trip%d=%ld;CT;1:NR",
+						tz->type, prev_trip,
+						delta_time.tv_sec);
+						log_to_metrics(ANDROID_LOG_INFO, "ThermalEvent", buf);
+					}
+				}
+			}
+		}
+	}
+	if (!strcmp(tz->type, VIRTUAL_SENSOR)) {
+		/* We are in downward trend */
+		if (tz->temperature < trip_temp && tz->last_temperature >= trip_temp) {
+			getnstimeofday(&current_time);
+			delta_time = timespec_sub(current_time, trip_start_time[trip]);
+			pr_notice("ThermalEvent: exit trip%d, duration %ld s\n", trip,
+							delta_time.tv_sec);
+			if(buf){
+				snprintf(buf, THERMO_METRICS_STR_LEN,
+					"thermzone:def:Throttle_%s_trip%d=%ld;CT;1:NR",
+					tz->type, trip,
+					delta_time.tv_sec);
+				log_to_metrics(ANDROID_LOG_INFO, "ThermalEvent", buf);
+			}
+			trip_start_time[trip].tv_sec = 0;
+			if (trip != 0) {
+				prev_trip = trip - 1;
+				pr_notice("ThermalEvent: entering trip%d, curr_temp:%d\n", prev_trip,
+							tz->temperature);
+				getnstimeofday(&trip_start_time[prev_trip]);
+			}
+		}
+	}
+	if(buf)
+		vfree(buf);
 #endif
 
 	/*
@@ -477,6 +553,13 @@ static void update_temperature(struct thermal_zone_device *tz)
 	long temp;
 	int ret;
 
+#ifdef CONFIG_AMAZON_METRICS_LOG
+	char *buf = NULL;
+
+	struct timespec  current_time;
+	struct timespec  delta_time;
+#endif
+
 	ret = thermal_zone_get_temp(tz, &temp);
 	if (ret) {
 		dev_warn(&tz->device, "failed to read out thermal zone %d\n",
@@ -488,6 +571,36 @@ static void update_temperature(struct thermal_zone_device *tz)
 	tz->last_temperature = tz->temperature;
 	tz->temperature = temp;
 	mutex_unlock(&tz->lock);
+
+#ifdef CONFIG_AMAZON_METRICS_LOG
+	getnstimeofday(&current_time);
+	delta_time = timespec_sub(current_time, prev_time[tz->id]);
+
+	/* periodically log the thermal value - every 15 min or 15*60 seconds*/
+	if (abs(delta_time.tv_sec) >= 15*60) {
+		buf = vmalloc(THERMO_METRICS_STR_LEN * sizeof(char));
+		if(buf){
+			snprintf(buf, THERMO_METRICS_STR_LEN,
+				"thermzone:def:%s=%d;CT;1:NR",
+				tz->type,
+				tz->temperature/1000);
+			log_to_metrics(ANDROID_LOG_INFO, "ThermalEvent", buf);
+
+			/* Logs to amazon_main */
+			memset(buf, 0, sizeof(buf));
+			snprintf(buf, THERMO_METRICS_STR_LEN,
+				"thermalzone:def:%s=%d;CT;1:NR",
+				tz->type,
+				tz->temperature/1000);
+			log_to_amzmain(ANDROID_LOG_INFO, "ThermalEngine", buf);
+			vfree(buf);
+		} else {
+			printk("allocate thermal metrics buffer error: ENOMEM!\n");
+		}
+
+		prev_time[tz->id] = current_time;
+	}
+#endif
 }
 
 void thermal_zone_device_update(struct thermal_zone_device *tz)

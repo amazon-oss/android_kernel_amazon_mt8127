@@ -35,8 +35,8 @@
 
 /*for MTK_HDMI_MAIN_PATH*/
 #include "disp_drv_platform.h"
-#if MTK_HDMI_MAIN_PATH
-#include "hdmitx.h"
+#if MTK_HDMI_MAIN_PATH || MTK_TVSTICK_HDMI_PATH
+#include <linux/hdmitx.h>
 #endif
 
 enum OVL_COLOR_SPACE {
@@ -69,6 +69,9 @@ int OVLStart() {
     
     DISP_REG_SET(DISP_REG_OVL_INTEN, 0x0f);
     DISP_REG_SET(DISP_REG_OVL_EN, 0x01);
+#if MTK_TVSTICK_HDMI_PATH
+	DISP_REG_SET(DISP_REG_OVL_DUMMY, 0x01);
+#endif
 
     DISP_REG_SET(DISP_REG_OVL_RDMA0_FIFO_CTRL, 0x400000);
     DISP_REG_SET(DISP_REG_OVL_RDMA1_FIFO_CTRL, 0x400000);

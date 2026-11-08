@@ -30,7 +30,7 @@ typedef struct _OVL_CONFIG_STRUCT
 	unsigned int layer_en;
     enum OVL_LAYER_SOURCE source;
     unsigned int fmt;
-    unsigned int addr; 
+    unsigned int addr;
     unsigned int vaddr;
     unsigned int src_x;
     unsigned int src_y;
@@ -42,9 +42,9 @@ typedef struct _OVL_CONFIG_STRUCT
     unsigned int dst_w;
     unsigned int dst_h;                  // clip region
     unsigned int keyEn;
-    unsigned int key; 
-    unsigned int aen; 
-    unsigned char alpha;  
+    unsigned int key;
+    unsigned int aen;
+    unsigned char alpha;
 
     unsigned int isTdshp;
     unsigned int isDirty;
@@ -53,9 +53,9 @@ typedef struct _OVL_CONFIG_STRUCT
     int identity;
     int connected_type;
     unsigned int security;
-    int fence_fd;   
+    int fence_fd;
     struct ion_handle *ion_handles;
-    bool fgIonHandleImport;	
+    bool fgIonHandleImport;
 }OVL_CONFIG_STRUCT;
 
 struct disp_path_config_struct
@@ -63,8 +63,8 @@ struct disp_path_config_struct
     unsigned int srcModule; // DISP_MODULE_ENUM
 
 	// if srcModule=RDMA0, set following value, else do not have to set following value
-    unsigned int addr; 
-    unsigned int inFormat; 
+    unsigned int addr;
+    unsigned int inFormat;
     unsigned int pitch;
     struct DISP_REGION srcROI;        // ROI
 
@@ -74,7 +74,7 @@ struct disp_path_config_struct
     unsigned int bgColor;  // background color
 
     unsigned int dstModule; // DISP_MODULE_ENUM
-    unsigned int outFormat; 
+    unsigned int outFormat;
     unsigned int dstAddr;  // only take effect when dstModule=DISP_MODULE_WDMA or DISP_MODULE_WDMA1
     unsigned int enableUFOE;
     int srcWidth, srcHeight;
@@ -90,7 +90,7 @@ struct disp_path_config_mem_out_struct
 {
     unsigned int enable;
     unsigned int dirty;
-	unsigned int outFormat; 
+	unsigned int outFormat;
     unsigned int dstAddr;
     struct DISP_REGION srcROI;        // ROI
     unsigned int security;
@@ -155,13 +155,14 @@ int disp_path_config_mem_out_(struct disp_path_config_mem_out_struct* pConfig, i
 int disp_path_config_mem_out_without_lcd(struct disp_path_config_mem_out_struct* pConfig);
 void disp_path_wait_mem_out_done(void);
 int disp_path_clock_on(char* name);
+int disp_main_path_clock_off(char* name);
 int disp_path_clock_off(char* name);
 int disp_path_change_tdshp_status(unsigned int layer, unsigned int enable);
 
 int disp_hdmi_path_clock_on(char* name);
 int disp_hdmi_path_clock_off(char* name);
 int disp_path_rdma_start(unsigned idx);  /* porting from abc123 : power_saving*/
-
+int disp_path_ovl_start(void);
 void disp_path_clear_mem_out_done_flag(void);
 int disp_path_query(void); // return different functions according to chip type
 int disp_bls_set_max_backlight(unsigned int level);

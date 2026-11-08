@@ -104,12 +104,12 @@
 #include <linux/wakelock.h>
 #include <linux/ctype.h>
 #include <linux/dma-mapping.h>
-
+#include <linux/cpumask.h>
 
 #include "musbfsh_core.h"
-#include "musbfsh_host.h"
-#include "musbfsh_dma.h"
-#include "musbfsh_hsdma.h"
+#include "../musbfsh_host.h"
+#include "../musbfsh_dma.h"
+#include "../musbfsh_hsdma.h"
 #include "musbfsh_mt65xx.h"
 
 #ifndef CONFIG_MUSBFSH_PIO_ONLY
@@ -1213,6 +1213,9 @@ musbfsh_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		status = -ENODEV;
 		goto fail2;
 	}
+
+	irq_set_affinity(nIrq, cpumask_of(2));
+
 	musbfsh->nIrq = nIrq; //update the musbfsh->nIrq after request_irq !
 /* FIXME this handles wakeup irqs wrong */
 	if (enable_irq_wake(nIrq) == 0) { //wx, need to be replaced by modifying kernel/core/mt6573_ost.c

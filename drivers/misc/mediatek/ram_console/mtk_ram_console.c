@@ -478,6 +478,10 @@ static void __init ram_console_save_old(struct ram_console_buffer *buffer)
 		       rc_console + buffer->start, old_log_size - buffer->start);
 		memcpy(ram_console_old_log_init_buffer + old_log_size - buffer->start,
 		       rc_console, buffer->start);
+
+		/* clear buffer start and size */
+		buffer->size = 0;
+		buffer->start = 0;
 	} else {
 		bin_log_size = buffer->bin_log_count * 5 / 4;	/* bin: 12 34 56 78-->ascill: 78654321z */
 
@@ -567,6 +571,11 @@ static int __init ram_console_init(struct ram_console_buffer *buffer, size_t buf
 		buffer->off_console = buffer->off_linux + ALIGN(sizeof(struct last_reboot_reason), 64);
 	}
 	ram_console_buffer_size = buffer_size - buffer->off_console;
+
+	/* clear buffer start and size */
+	buffer->start = 0;
+	buffer->size = 0;
+
 	memset((char*)buffer + buffer->off_linux, 0, buffer_size - buffer->off_linux);
 
 	register_console(&ram_console);

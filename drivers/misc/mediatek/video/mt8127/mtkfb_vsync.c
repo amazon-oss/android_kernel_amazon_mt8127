@@ -23,6 +23,7 @@
 #include <linux/workqueue.h>
 #include <linux/semaphore.h>
 #include <linux/slab.h>
+#include <linux/ktime.h>
 
 #include "mtkfb_vsync.h"
 
@@ -53,6 +54,10 @@ DEFINE_SEMAPHORE(mtkfb_vsync_sem);
 
 extern void mtkfb_waitVsync(void);
 extern void mtkfb_disable_non_fb_layer(void);
+
+#ifdef CONFIG_MTK_AOSP_TVSTICK_SUPPORT
+ktime_t vsync_time;
+#endif
 
 void mtkfb_vsync_log_enable(int enable)
 {
@@ -89,6 +94,10 @@ static int mtkfb_vsync_flush(struct file * a_pstFile , fl_owner_t a_id)
 static long mtkfb_vsync_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     int ret = 0;
+#ifdef CONFIG_MTK_AOSP_TVSTICK_SUPPORT
+	vsync_config_t vsync_timestamp;
+	void __user *argp = (void __user *)arg;
+#endif
 	MTKFB_VSYNC_FUNC();
     switch (cmd)
     {
@@ -101,6 +110,12 @@ static long mtkfb_vsync_unlocked_ioctl(struct file *file, unsigned int cmd, unsi
      			return ret;
     		}
             mtkfb_waitVsync();
+#ifdef CONFIG_MTK_AOSP_TVSTICK_SUPPORT
+		vsync_timestamp.vsync_ticks = ktime_to_ns(vsync_time);
+		ret = copy_to_user(argp, &vsync_timestamp, sizeof(vsync_timestamp));
+		if (ret)
+			pr_err("vsync copy_to_user timestamp fail\n");
+#endif
 			up(&mtkfb_vsync_sem);
 			MTKFB_VSYNC_LOG("[MTKFB_VSYNC]: leave MTKFB_VSYNC_IOCTL\n");
         }

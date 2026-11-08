@@ -62,6 +62,7 @@ extern size_t hdmidrv_log_on;
 #define hdmiddclog         (0x80)
 #define hdmiedidlog        (0x100)
 #define hdmidrvlog         (0x200)
+#define hdmideflog         (0x400)
 
 #define hdmialllog   (0x3bf)
 
@@ -179,7 +180,11 @@ extern size_t hdmidrv_log_on;
         if(hdmidrv_log_on&hdmidrvlog) {printk("[hdmi_drv] %s\n", __func__);} \
     }while (0)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-
+#define HDMI_DEF_LOG(fmt, arg...) \
+            do { \
+                if (hdmidrv_log_on&hdmideflog) {printk(fmt, ##arg);} \
+            }while (0)
+///////////////////////////////////////////////////////////////////////////////////////////////////
 #define RETNULL(cond)       if ((cond)){HDMI_DRV_LOG("return in %d\n",__LINE__);return;}
 #define RETINT(cond, rslt)       if ((cond)){HDMI_DRV_LOG("return in %d\n",__LINE__);return (rslt);}
 

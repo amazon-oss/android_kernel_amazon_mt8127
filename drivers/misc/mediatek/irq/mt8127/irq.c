@@ -49,6 +49,11 @@
 #define GIC_ICDICER7 (GIC_DIST_BASE + 0x19C)
 #define INT_POL_CTL0 (MCUSYS_CFGREG_BASE + 0x100)
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+#define NR_GIC_CPU_IF 8
+static u8 gic_cpu_map[NR_GIC_CPU_IF] __read_mostly;
+#endif
+
 #if defined(CONFIG_FIQ_GLUE)
 static int irq_raise_softfiq(const struct cpumask *mask, unsigned int irq);
 #else
@@ -267,6 +272,37 @@ static int mt_irq_set_type(struct irq_data *data, unsigned int flow_type)
     return 0;
 }
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+static inline unsigned int gic_irq(struct irq_data *d)
+{
+	return d->irq;
+}
+
+static int mt_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
+							bool force)
+{
+	void __iomem *reg = IOMEM(GIC_DIST_BASE + GIC_DIST_TARGET + (gic_irq(d) & ~3));
+	unsigned int cpu, shift = (gic_irq(d) % 4) * 8;
+	u32 val, mask, bit;
+
+	if (!force)
+		cpu = cpumask_any_and(mask_val, cpu_online_mask);
+	else
+		cpu = cpumask_first(mask_val);
+
+	if (cpu >= NR_GIC_CPU_IF || cpu >= nr_cpu_ids)
+		return -EINVAL;
+
+	mask = 0xff << shift;
+	bit = gic_cpu_map[cpu] << shift;
+
+	val = readl(reg) & ~mask;
+	writel(val | bit, IOMEM(reg));
+
+	return IRQ_SET_MASK_OK;
+}
+#endif
+
 static struct irq_chip mt_irq_chip = {
     .irq_disable = mt_irq_mask,
     .irq_enable = mt_irq_unmask,
@@ -274,6 +310,9 @@ static struct irq_chip mt_irq_chip = {
     .irq_mask = mt_irq_mask,
     .irq_unmask = mt_irq_unmask,
     .irq_set_type = mt_irq_set_type,
+#ifdef CONFIG_ARCH_MT8127_TANK
+	.irq_set_affinity	= mt_set_affinity,
+#endif
 };
 
 static void mt_gic_dist_init(void)
@@ -349,7 +388,26 @@ static void mt_gic_dist_init(void)
 
 static void mt_gic_cpu_init(void)
 {
+#ifdef CONFIG_ARCH_MT8127_TANK
+    unsigned int cpu_mask, cpu = smp_processor_id();
+#endif
     int i;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	/*
+	 * Get what the GIC says our CPU mask is.
+	 */
+	BUG_ON(cpu >= NR_GIC_CPU_IF);
+	cpu_mask = 1 << smp_processor_id();
+	gic_cpu_map[cpu] = cpu_mask;
+
+	/*
+	 * Clear our mask from the other map entries in case they're
+	 * still undefined.
+	 */
+	for (i = 0; i < NR_GIC_CPU_IF; i++)
+		if (i != cpu)
+			gic_cpu_map[i] &= ~cpu_mask;
+#endif
 
     /*
      * Deal with the banked PPI and SGI interrupts - disable all

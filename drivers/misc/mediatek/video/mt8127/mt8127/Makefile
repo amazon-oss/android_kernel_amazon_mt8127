@@ -22,3 +22,7 @@ endif
 ifeq ($(CONFIG_MTK_OVERLAY_ENGINE_SUPPORT), y)
 ccflags-y += -DMTK_OVERLAY_ENGINE_SUPPORT
 endif
+
+ifeq ($(CONFIG_MTK_AOSP_TVSTICK_SUPPORT), y)
+ccflags-y += -DMTK_AOSP_TVSTICK_SUPPORT
+endif

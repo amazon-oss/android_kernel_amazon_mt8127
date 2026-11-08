@@ -473,6 +473,47 @@ static int mtk_wdt_deglitch_en(void)
 	DRV_WriteReg32(MTK_WDT_DEGLITCH_EN,tmp);
 	return 0;
 }	
+
+int mtk_wd_SetNonResetReg2(unsigned int value)
+{
+	spin_lock(&rgu_reg_operation_spinlock);
+
+	writel(value, MTK_WDT_NONRST_REG2);
+
+	spin_unlock(&rgu_reg_operation_spinlock);
+
+	return __raw_readl(MTK_WDT_NONRST_REG2);
+}
+
+int mtk_wd_SetNonResetReg2_bit(unsigned int offset, bool set)
+{
+	unsigned int tmp;
+
+	spin_lock(&rgu_reg_operation_spinlock);
+
+	tmp = __raw_readl(MTK_WDT_NONRST_REG2);
+	if (set)
+		tmp |= 1 << offset;
+	else
+		tmp &= ~(1 << offset);
+	writel(tmp, MTK_WDT_NONRST_REG2);
+
+	spin_unlock(&rgu_reg_operation_spinlock);
+
+	return __raw_readl(MTK_WDT_NONRST_REG2);
+}
+
+int mtk_wd_GetNonResetReg2()
+{
+	unsigned int tmp = 0;
+
+	spin_lock(&rgu_reg_operation_spinlock);
+	tmp = __raw_readl(MTK_WDT_NONRST_REG2);
+	spin_unlock(&rgu_reg_operation_spinlock);
+
+	return tmp;
+}
+
 #else 
 //-------------------------------------------------------------------------------------------------
 //      Dummy functions

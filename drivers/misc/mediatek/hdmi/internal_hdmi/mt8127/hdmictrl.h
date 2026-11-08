@@ -34,7 +34,7 @@
 #include <linux/string.h>
 #include <linux/completion.h>
 
-#include "hdmitable.h"
+#include <linux/hdmitx.h>
 #include "internal_hdmi_drv.h"
 ////////////////////////////////////////
 
@@ -46,7 +46,7 @@
 
 ////////////////////////////////////////
 #define PORD_MODE     (1<<0)
-#define HOTPLUG_MODE  (1<<1) 
+#define HOTPLUG_MODE  (1<<1)
 ////////////////////////////////////////
 #define AV_INFO_HD_ITU709           0x80
 #define AV_INFO_SD_ITU601           0x40
@@ -98,13 +98,13 @@
 
 #define RJT_24BIT 0
 #define RJT_16BIT 1
-#define LJT_24BIT 2 
+#define LJT_24BIT 2
 #define LJT_16BIT 3
 #define I2S_24BIT 4
-#define I2S_16BIT 5 
+#define I2S_16BIT 5
 
 ///////////////////////////////////////
-#define GRL_INT              0x14 
+#define GRL_INT              0x14
   #define INT_MDI            (0x1 << 0)
   #define INT_HDCP           (0x1 << 1)
   #define INT_FIFO_O         (0x1 << 2)
@@ -113,31 +113,31 @@
   #define INT_INF_DONE       (0x1 << 5)
   #define INT_NCTS_DONE      (0x1 << 6)
   #define INT_CTRL_PKT_DONE  (0x1 << 7)
-#define GRL_INT_MASK              0x18      
+#define GRL_INT_MASK              0x18
 #define GRL_CTRL             0x1C
-  #define CTRL_GEN_EN        (0x1 << 2) 
-  #define CTRL_SPD_EN        (0x1 << 3) 
-  #define CTRL_MPEG_EN       (0x1 << 4)  
+  #define CTRL_GEN_EN        (0x1 << 2)
+  #define CTRL_SPD_EN        (0x1 << 3)
+  #define CTRL_MPEG_EN       (0x1 << 4)
   #define CTRL_AUDIO_EN      (0x1 << 5)
-  #define CTRL_AVI_EN        (0x1 << 6)       
-  #define CTRL_AVMUTE        (0x1 << 7) 
+  #define CTRL_AVI_EN        (0x1 << 6)
+  #define CTRL_AVMUTE        (0x1 << 7)
 #define GRL_STATUS           0x20
   #define STATUS_HTPLG       (0x1 << 0)
   #define STATUS_PORD        (0x1 << 1)
-  
+
 #define GRL_CFG0             0x24
   #define CFG0_I2S_MODE_RTJ  0x1
   #define CFG0_I2S_MODE_LTJ  0x0
   #define CFG0_I2S_MODE_I2S  0x2
    #define CFG0_I2S_MODE_24Bit 0x00
   #define CFG0_I2S_MODE_16Bit 0x10
-  
+
 #define GRL_CFG1             0x28
   #define CFG1_EDG_SEL       (0x1 << 0)
   #define CFG1_SPDIF         (0x1 << 1)
   #define CFG1_DVI           (0x1 << 2)
   #define CFG1_HDCP_DEBUG    (0x1 << 3)
-#define GRL_CFG2             0x2c 
+#define GRL_CFG2             0x2c
   #define CFG2_NOTICE_EN     (0x1 << 6)
   #define MHL_DE_SEL         (0x1<<3)
 #define GRL_CFG3             0x30
@@ -147,7 +147,7 @@
 #define GRL_CFG4             0x34
   #define CFG4_AES_KEY_LOAD  (0x1 << 4)
   #define CFG4_AV_UNMUTE_EN  (0x1 << 5)
-  #define CFG4_AV_UNMUTE_SET (0x1 << 6) 
+  #define CFG4_AV_UNMUTE_SET (0x1 << 6)
   #define CFG_MHL_MODE (0x1<<7)
 #define GRL_CFG5             0x38
   #define CFG5_CD_RATIO_MASK 0x8F
@@ -156,9 +156,9 @@
   #define CFG5_FS384         (0x3 << 4)
   #define CFG5_FS512         (0x4 << 4)
   #define CFG5_FS768         (0x6 << 4)
-#define GRL_WR_BKSV0         0x40 
-#define GRL_WR_AN0           0x54 
-#define GRL_RD_AKSV0         0x74 
+#define GRL_WR_BKSV0         0x40
+#define GRL_WR_AN0           0x54
+#define GRL_RD_AKSV0         0x74
 #define GRL_RI_0             0x88
 #define GRL_KEY_PORT         0x90
 #define GRL_KSVLIST          0x94
@@ -166,8 +166,8 @@
   #define HDCP_STA_RI_RDY    (0x1 << 2)
   #define HDCP_STA_V_MATCH   (0x1 << 3)
   #define HDCP_STA_V_RDY     (0x1 << 4)
-    
-    
+
+
 #define GRL_HDCP_CTL         0xBC
   #define HDCP_CTL_ENC_EN    (0x1 << 0)
   #define HDCP_CTL_AUTHEN_EN (0x1 << 1)
@@ -176,47 +176,47 @@
   #define HDCP_CTRL_RX_RPTR  (0x1 << 4)
   #define HDCP_CTL_HOST_KEY  (0x1 << 6)
   #define HDCP_CTL_SHA_EN    (0x1 << 7)
-  
+
 #define GRL_REPEATER_HASH    0xC0
 #define GRL_I2S_C_STA0             0x140
 #define GRL_I2S_C_STA1             0x144
 #define GRL_I2S_C_STA2             0x148
 #define GRL_I2S_C_STA3             0x14C //including sampling frequency information.
 #define GRL_I2S_C_STA4             0x150
-#define GRL_I2S_UV           0x154 
+#define GRL_I2S_UV           0x154
 #define GRL_ACP_ISRC_CTRL    0x158
   #define VS_EN              (0x01<<0)
   #define ACP_EN             (0x01<<1)
   #define ISRC1_EN           (0x01<<2)
   #define ISRC2_EN           (0x01<<3)
   #define GAMUT_EN           (0x01<<4)
-#define GRL_CTS_CTRL         0x160 
-  #define CTS_CTRL_SOFT      (0x1 << 0) 
-  
-#define GRL_CTS0             0x164 
+#define GRL_CTS_CTRL         0x160
+  #define CTS_CTRL_SOFT      (0x1 << 0)
+
+#define GRL_CTS0             0x164
 #define GRL_CTS1             0x168
-#define GRL_CTS2             0x16c  
-  
+#define GRL_CTS2             0x16c
+
 #define GRL_DIVN             0x170
   #define NCTS_WRI_ANYTIME   (0x01<<6)
 
-#define GRL_DIV_RESET        0x178 
+#define GRL_DIV_RESET        0x178
   #define SWAP_YC  (0x01 << 0)
   #define UNSWAP_YC  (0x00 << 0)
-  
-#define GRL_AUDIO_CFG        0x17C 
+
+#define GRL_AUDIO_CFG        0x17C
   #define AUDIO_ZERO          (0x01<<0)
   #define HIGH_BIT_RATE      (0x01<<1)
   #define SACD_DST           (0x01<<2)
-  #define DST_NORMAL_DOUBLE  (0x01<<3)   
+  #define DST_NORMAL_DOUBLE  (0x01<<3)
   #define DSD_INV            (0x01<<4)
-  #define LR_INV             (0x01<<5) 
-  #define LR_MIX             (0x01<<6) 
-  #define SACD_SEL           (0x01<<7) 
-  
+  #define LR_INV             (0x01<<5)
+  #define LR_MIX             (0x01<<6)
+  #define SACD_SEL           (0x01<<7)
+
 #define GRL_NCTS             0x184
-  
-#define GRL_IFM_PORT         0x188  
+
+#define GRL_IFM_PORT         0x188
 #define GRL_CH_SW0           0x18C
 #define GRL_CH_SW1           0x190
 #define GRL_CH_SW2           0x194
@@ -243,7 +243,7 @@
   #define AOUT_20BIT         0x02
   #define AOUT_16BIT         0x03
   #define HIGH_BIT_RATE_PACKET_ALIGN (0x3 << 6)
-  
+
 #define GRL_L_STATUS_0        0x200
 #define GRL_L_STATUS_1        0x204
 #define GRL_L_STATUS_2        0x208
@@ -293,6 +293,9 @@
 #define GRL_R_STATUS_22        0x2b8
 #define GRL_R_STATUS_23        0x2bc
 
+#define GRL_ABIST_CTL0		0x2d4
+#define GRL_ABIST_CTL1		0x2d8
+
 #define DUMMY_304    0x304
   #define CHMO_SEL  (0x3<<2)
   #define CHM1_SEL  (0x3<<4)
@@ -311,7 +314,7 @@
 #define CRC_RESULT_L 0x314
 
 #define CRC_RESULT_H 0x318
-   
+
 #define VIDEO_CFG_0 0x380
 #define VIDEO_CFG_1 0x384
 #define VIDEO_CFG_2 0x388
@@ -327,8 +330,8 @@
    #define DPI1_H_CK (0x1<<24)
    #define DPI1_D2  (0x2<<24)
    #define DPI1_D4  (0x3<<24)
-   
-#define HDMICLK_CFG_5	0x90   
+
+#define HDMICLK_CFG_5	0x90
   #define CLK_HDMIPLL_SEL (0x3<<8)
    #define HDMIPLL_MUX_CK (0x0<<8)
    #define HDMIPLL_CTS (0x1<<8)
@@ -340,17 +343,17 @@
 
 #define INFRA_PDN0	0x1040
   #define CEC_PDN0 (0x1<<18)
-   
+
 #define INFRA_PDN1	0x1044
-  #define CEC_PDN1 (0x1<<18)  
+  #define CEC_PDN1 (0x1<<18)
 
 #define PREICFG_PDN_SET	0x3008
-  #define DDC_PDN_SET (0x1<<25) 
+  #define DDC_PDN_SET (0x1<<25)
 
 #define PREICFG_PDN_CLR	0x3010
-  #define DDC_PDN_CLR (0x1<<25)  
+  #define DDC_PDN_CLR (0x1<<25)
 
-/////////////////////////////////////////////////////   
+/////////////////////////////////////////////////////
 #define HDMI_SYS_CFG110   0x110
   #define DISABLE_DPICLK  (1<<4)
   #define ENABLE_DPICLK  (0<<4)
@@ -362,7 +365,7 @@
   #define ENABLE_SPDIFCLK   (0<<11)
   #define DISABLE_BCLK   (1<<10)
   #define ENABLE_BCLK  (0<<10)
-  
+
 #define HDMI_SYS_CFG1C   0x900
   #define HDMI_ON            (0x01<< 0)
   #define HDMI_RST           (0x01<< 1)
@@ -375,17 +378,17 @@
   #define AUD_OUTSYNC_PRE_EN (((unsigned int)1)<<25)
   #define I2CM_ON            (((unsigned int)1)<<26)
   #define E2PROM_TYPE_8BIT   (((unsigned int)1)<<27)
-  #define MCM_E2PROM_ON      (((unsigned int)1)<<28) 
-  #define EXT_E2PROM_ON      (((unsigned int)1)<<29) 
-  #define HTPLG_PIN_SEL_OFF  (((unsigned int)1)<<30) 
-  #define AES_EFUSE_ENABLE   (((unsigned int)1)<<31) 
-  
+  #define MCM_E2PROM_ON      (((unsigned int)1)<<28)
+  #define EXT_E2PROM_ON      (((unsigned int)1)<<29)
+  #define HTPLG_PIN_SEL_OFF  (((unsigned int)1)<<30)
+  #define AES_EFUSE_ENABLE   (((unsigned int)1)<<31)
+
 #define HDMI_SYS_CFG20   0x904
   #define DEEP_COLOR_MODE_MASK (3 << 1)
-  #define COLOR_8BIT_MODE 	 (0 << 1) 
-  #define COLOR_10BIT_MODE	 (1 << 1) 
-  #define COLOR_12BIT_MODE	 (2 << 1) 
-  #define COLOR_16BIT_MODE	 (3 << 1) 
+  #define COLOR_8BIT_MODE 	 (0 << 1)
+  #define COLOR_10BIT_MODE	 (1 << 1)
+  #define COLOR_12BIT_MODE	 (2 << 1)
+  #define COLOR_16BIT_MODE	 (3 << 1)
   #define DEEP_COLOR_EN		 (1 << 0)
   #define HDMI_AUDIO_TEST_SEL 	  (0x01 << 8)
   #define HDMI_OUT_FIFO_EN		  (0x01 << 16)
@@ -403,7 +406,7 @@
  #define CAL_OK (1<<2)
  #define CALSEL (2<<3)
  #define CAL_CNT (0xffff<<16)
-/////////////////////////////////////////////////// 
+///////////////////////////////////////////////////
 #define HDMI_SYS_PWR_RST_B  0x100
  #define hdmi_pwr_sys_sw_reset (0<<0)
  #define hdmi_pwr_sys_sw_unreset (1<<0)
@@ -415,7 +418,7 @@
  #define hdmi_power_turnon (1<<1)
  #define hdmi_clock_on (0<<2)
  #define hdmi_clock_off (1<<2)
- 
+
 #define HDMI_SYS_AMPCTRL  0x328
   #define CK_TXAMP_ENB             0x00000008
   #define D0_TXAMP_ENB             0x00000080
@@ -426,19 +429,19 @@
   #define ENTXTST_ENB              0x08000000
   #define CKFIFONEG                0x80000000
   #define RG_SET_DTXST           (1<<23)
-  
+
 #define HDMI_SYS_AMPCTRL1  0x32c
 
 #define HDMI_SYS_PLLCTRL1  0x330
   #define PRE_AMP_ENB           0x00000080//(0x01<<7)
   #define INV_CLCK              0x80000000
   #define RG_ENCKST   (1<<2)
-  
+
 #define HDMI_SYS_PLLCTRL2  0x334
   #define POW_HDMITX    (0x01<< 20)
   #define POW_PLL_L     (0x01<< 21)
-  
-    
+
+
 #define HDMI_SYS_PLLCTRL3  0x338
   #define PLLCTRL3_MASK 0xffffffff
   #define RG_N3_MASK             0x0000001f //1f <<0
@@ -447,24 +450,24 @@
     #define N4_POS              5
 
   #define RG_BAND_MASK_0         (1<<7)
-    #define BAND_MASK_0_POS     7  
+    #define BAND_MASK_0_POS     7
   #define RG_BAND_MASK_1         (1<<11)
-    #define BAND_MASK_1_POS     11  
-     
-     
-#define HDMI_SYS_PLLCTRL4  0x33c    
+    #define BAND_MASK_1_POS     11
+
+
+#define HDMI_SYS_PLLCTRL4  0x33c
   #define PLLCTRL4_MASK 0xffffffff
   #define RG_ENRST_CALIB  (1 << 21)
 
 #define HDMI_SYS_PLLCTRL5  0x340
   #define PLLCTRL5_MASK 0xffffffff
-  
+
   #define TURN_ON_RSEN_RESISTANCE     (1<<7)
-  #define RG_N5_MASK             0x0000001f  
+  #define RG_N5_MASK             0x0000001f
     #define N5_POS              0
   #define RG_N6_MASK             (3 << 5)
     #define N6_POS              5
-    
+
   #define RG_N1_MASK             0x00001f00
     #define N1_POS              8
 
@@ -478,7 +481,7 @@
   #define ABIST_LV_EN (1<<16)
   #define RG_DISC_TH  (0x3<<0)
   #define RG_CK148M_EN (1<<4)
-  
+
 #define HDMI_SYS_PLLCTRL7  0x348
   #define PLLCTRL7_MASK  0xffffffff
   #define TX_DRV_ENABLE (0xFF<<16)
@@ -504,7 +507,7 @@
 	#define RG_HDMITX_EN_IMP_MASK			(0x0F << 24)
 	#define RG_HDMITX_EN_DRV				(28)
 	#define RG_HDMITX_EN_DRV_MASK			(0x0F << 28)
-  
+
 #define HDMI_CON1	0x104
 	#define RG_HDMITX_SER_DIN				(4)
 	#define RG_HDMITX_SER_DIN_MASK			(0x3FF << 4)
@@ -520,7 +523,7 @@
 	#define RG_HDMITX_SER_BIST_TOG			(0x01 << 25)
 	#define RG_HDMITX_DRV_IMP				(26)
 	#define RG_HDMITX_DRV_IMP_MASK			(0x3F << 26)
-  
+
 #define HDMI_CON2	0x108
 	#define RG_HDMITX_EN_TX_CKLDO			(0x01 << 0)
 	#define RG_HDMITX_EN_TX_POSDIV			(0x01 << 1)
@@ -540,7 +543,7 @@
 	#define RG_HDMITX_DATA_CLKCH_MASK		(0x3FF << 14)
 	#define RG_HDMITX_SER_TEST_SEL			(24)
 	#define RG_HDMITX_SER_TEST_SEL_MASK		(0xFF << 24)
-  
+
 #define HDMI_CON3	0x10c
 	#define RG_HDMITX_TEST_SEL				(16)
 	#define RG_HDMITX_TEST_SEL_MASK			(0x3F << 16)
@@ -552,11 +555,11 @@
 	#define RG_HDMITX_TEST_SEL_TOP_MASK		(0x03 << 28)
 	#define RG_HDMITX_TEST_DIV_SEL			(30)
 	#define RG_HDMITX_TEST_DIV_SEL_MASK		(0x02 << 30)
-  
+
 #define HDMI_CON4	0x110
 	#define RG_HDMITX_RESERVE				(0)
 	#define RG_HDMITX_RESERVE_MASK			(0xFFFFFFFF << 0)
-  
+
 #define HDMI_CON5	0x114
 	#define RGS_HDMITX_CAL_STATUS			(4)
 	#define RGS_HDMITX_CAL_STATUS_MASK		(0xFF << 4)
@@ -569,7 +572,7 @@
 	#define RGS_HDMITX_ABIST_51EDG			(24)
 	#define RGS_HDMITX_ABIST_51EDG_MASK		(0x0F << 24)
 	#define RGS_HDMITX_PLUG_TST				(0x01 << 31)
-  
+
 #define HDMI_CON6	0x118
 	#define RG_HTPLL_BR						(0)
 	#define RG_HTPLL_BR_MASK				(0x03 << 0)
@@ -592,7 +595,7 @@
 	#define RG_HTPLL_FBKDIV					(24)
 	#define RG_HTPLL_FBKDIV_MASK			(0x7F << 24)
 	#define RG_HTPLL_EN						(0x01 << 31)
-  
+
 #define HDMI_CON7	0x11c
 	#define RG_HTPLL_RESERVE				(0)
 	#define RG_HTPLL_RESERVE_MASK			(0xFF << 0)
@@ -614,7 +617,7 @@
 	#define RG_HTPLL_DIVEN					(28)
 	#define RG_HTPLL_DIVEN_MASK				(0x07 << 28)
 	#define RG_HTPLL_AUTOK_LOAD				(0x01 << 31)
-  
+
 #define HDMI_CON8	0x120
 	#define RGS_HTPLL_AUTOK_PASS			(0x01 << 15)
 	#define RGS_HTPLL_AUTOK_BAND			(0x01 << 23)
@@ -634,7 +637,7 @@
 #define dgi0_anaif_ctrl1 0x450
   #define dgi1_pad_clk_inv_en            (1<<31)
   #define dgi1_clk_delay_sel1            (0x3f<<24)
-  #define dgi1_clk_delay_sel0            (0x3f<<16) 
+  #define dgi1_clk_delay_sel0            (0x3f<<16)
   #define dgi1_clk_delay_sel0            (0x3f<<16)
   #define dgi1_clk_pad_sel_tv_mode       (1<<10)
   #define data_in_tv_mode                (1<<9)
@@ -646,7 +649,7 @@
   #define dgi1_pad_clk_en                (1<<1)
   #define tv_mode_clk_en                 (1<<0)
 #define ttl_anaif_ctrl  0x454
-  
+
 #define dec_ctl  0x600
   #define reset_counter                  (1<<27)
   #define field_dec_polar                (1<<10)
@@ -709,7 +712,7 @@
   #define rg_vsync_forward	             (1<<31)
   #define rg_vsync_delay	             (0x1fff<<16)
   #define rg_hsync_delay	             (0x1fff<<0)
-  
+
 #define tg_ctrl02 0x624
   #define vsync_total                    (0xfff<<16)
   #define hsync_total                    (0x1fff<<0)
@@ -745,7 +748,7 @@
 #define tg_ctrl09 0x640
   #define y_active_ostart_1              (0xfff<<16)
   #define y_active_oend_1                (0xfff<<0)
-  
+
 #define tg_ctrl10 0x644
   #define y_active_estart_1              (0xfff<<16)
   #define y_active_eend_1                (0xfff<<0)
@@ -759,7 +762,7 @@
   #define dgi1_clk_in_inv_enable	     (1<<1)
   #define dgi1_clk_in_enable	         (1<<0)
 
-#define  pat_gen_ctrl0  0x700 
+#define  pat_gen_ctrl0  0x700
   #define rg_ptgen_v_total               (0xfff<<16)
   #define rg_ptgen_h_total               (0x1fff<<0)
 
@@ -822,8 +825,11 @@
 #define IO_PAD_EN 0x180
 #define IO_PAD_HOT_PLUG_EN (1<<11)
 
+#define HDMI_3D_STRUCT_SBS      0x08
+#define HDMI_3D_STRUCT_TB      0x06
 
 extern HDMI_AV_INFO_T _stAvdAVInfo;
+extern unsigned char hdmi_absit_mode_enable;
 
 extern unsigned int hdmi_drv_read(unsigned short u2Reg);
 extern void hdmi_drv_write(unsigned short u2Reg, unsigned int u4Data);
@@ -881,5 +887,8 @@ extern void vUnBlackHDMIOnly(void);
 extern void UnMuteHDMIAudio(void);
 extern void MuteHDMIAudio(void);
 extern unsigned char hdmi_get_port_hpd_value(void);
+extern unsigned char vIsDviMode(void);
+extern unsigned int hdmi_check_status(void);
+extern void vEnableHdmiMode(unsigned char bOn);
 #endif
 #endif

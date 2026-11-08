@@ -120,6 +120,12 @@ typedef struct DISP_EXEC_SEC_METADATA
     void* addrList; 
     void* portList;
 
+#ifdef CONFIG_MTK_HDMI_HDCP_SUPPORT
+	/* we need to copy srcBuffer HDCP version to dstBuffer */
+	uint32_t srcHandleForHDCP;		/* add for MDP HDCP version copy in CMDQ trustzone */
+	uint32_t dstHandleForHDCP;		/* add for MDP HDCP version copy in CMDQ trustzone */
+
+#endif
     // discarded!
     // the following will be phased out latter
     uint32_t totalSecureFd;       

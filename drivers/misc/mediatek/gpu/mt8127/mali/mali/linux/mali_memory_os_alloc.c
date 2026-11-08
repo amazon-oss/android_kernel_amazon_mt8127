@@ -430,14 +430,14 @@ static int mali_mem_os_shrink(struct shrinker *shrinker, struct shrink_control *
 		return mali_mem_os_allocator.pool_count + mali_mem_page_table_page_pool.count;
 	}
 
-	if (0 == mali_mem_os_allocator.pool_count) {
-		/* No pages availble */
-		return 0;
-	}
-
 	if (0 == spin_trylock_irqsave(&mali_mem_os_allocator.pool_lock, flags)) {
 		/* Not able to lock. */
 		return -1;
+	}
+	if (0 == mali_mem_os_allocator.pool_count) {
+		/* No pages availble */
+		spin_unlock_irqrestore(&mali_mem_os_allocator.pool_lock, flags);
+		return 0;
 	}
 
 	/* Release from general page pool */

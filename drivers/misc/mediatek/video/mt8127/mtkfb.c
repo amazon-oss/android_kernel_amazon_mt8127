@@ -53,6 +53,9 @@
 
 // for MTK_HDMI_MAIN_PATH
 #include "disp_drv_platform.h"
+#if MTK_TVSTICK_HDMI_PATH
+#include <linux/hdmitx.h>
+#endif
 
 #define NONFLUSH
 
@@ -130,6 +133,11 @@ static BOOL mtkfb_enable_mmu = TRUE;
 
 static const struct timeval FRAME_INTERVAL = {0, 30000};  // 33ms
 
+#if MTK_DISP_DIRECTLINK
+static atomic_t DL_pause_progress = ATOMIC_INIT(0);
+static atomic_t DL_resume_progress = ATOMIC_INIT(0);
+#endif
+
 atomic_t has_pending_update = ATOMIC_INIT(0);
 struct fb_overlay_layer video_layerInfo;
 UINT32 dbr_backup = 0;
@@ -176,6 +184,9 @@ extern wait_queue_head_t disp_done_wq;
 
 DEFINE_MUTEX(ScreenCaptureMutex);
 
+#if MTK_TVSTICK_HDMI_PATH
+BOOL video_config_status = false;
+#endif
 BOOL is_early_suspended = FALSE;
 BOOL is_early_suspended_done = FALSE;
 
@@ -917,7 +928,11 @@ static int mtkfb_pan_display_impl(struct fb_var_screeninfo *var, struct fb_info 
     mutex_unlock(&OverlaySettingMutex);
     #endif
 
+    #if MTK_DISP_DIRECTLINK
+    Disp_Ovl_Engine_Trigger_Overlay(mtkfb_instance);
+    #else
     ret = mtkfb_update_screen(info);
+    #endif
     //#if defined(MTK_OVERLAY_ENGINE_SUPPORT)
     //Disp_Ovl_Engine_Trigger_Overlay(mtkfb_instance);
     //#endif
@@ -1230,13 +1245,51 @@ void mtkfb_ion_cpu_cache_flush(struct ion_client *client, struct ion_handle *han
 		pr_err("ion cache flush failed!\n");
 	}
 }
+#ifdef CONFIG_ARCH_MT8127_TANK
+/* Gralloc extra data. This needs to be kept in sync with the structures */
+/* in user space's gralloc_extra.h */
+struct _crop_t {
+       int x, y, w, h;
+};
+struct gralloc_extra_ion_sf_info_t {
+       /* magic number to make sure that obj is created by query() */
+       unsigned int magic;
+
+       /* used by SurfaceFlinger*/
+       struct _crop_t src_crop;
+       struct _crop_t dst_crop;
+
+       /* buffer flags, please change this value by sf_set_status() */
+       int status;
+
+       /* used for pre-allocate buffer */
+       int pool_id;
+
+       /* used for profiling latency */
+       unsigned int sequence;
+
+       /* secure handle allocated by GRALLOC_EXTRA_GET_SECURE_HANDLE_HWC */
+       uint32_t secure_handle_hwc;
+
+       /* used for video frame */
+       unsigned int timestamp;
+
+       /* reserved data */
+       int reserved[2];
+};
+#endif
+
 static void mtkfb_update_ovls_handler(struct work_struct* _work)
 {
     /* Wait for a whole second for config to apply so it's obvious when something's wrong */
+#if MTK_DISP_DIRECTLINK
+const unsigned long wait_time = msecs_to_jiffies(100);
+#else
 #ifdef MTK_OVERLAY_ENGINE_SUPPORT
     const unsigned long wait_time = 1000;
 #else
     const unsigned long wait_time = msecs_to_jiffies(1000);
+#endif
 #endif
 	
 	update_ovls_work_t *work = (update_ovls_work_t *) _work;
@@ -1245,12 +1298,26 @@ static void mtkfb_update_ovls_handler(struct work_struct* _work)
 	struct sync_fence **fences = work->fences;
 	struct ion_handle **ion_handles = work->ion_handles;
 	int ret, i, suspended = 0;
+#if MTK_DISP_DIRECTLINK
+    BOOL is_last_config = true;
+#endif
 
 	update_ovls_work_t *curr, *tmp;
 	struct list_head tmp_list;
 	u32 inc = 0;
 
     MMProfileLog(MTKFB_MMP_Events.WrokHandler, MMProfileFlagStart);
+
+#if MTK_DISP_DIRECTLINK
+    for(i = 0; i < HW_OVERLAY_COUNT; i ++)
+    {
+        if (config->layers[i].layer_enable)
+        {
+            is_last_config = false;
+            break;
+        }
+    }
+#endif
 
 	/* ion handle to mva */
 	for (i = 0; i < HW_OVERLAY_COUNT; i++) {
@@ -1342,17 +1409,29 @@ static void mtkfb_update_ovls_handler(struct work_struct* _work)
     /* Flush CPU cache */
     for (i = 0; i < HW_OVERLAY_COUNT; i++) {
 	    ion_mm_data_t data;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	    struct gralloc_extra_ion_sf_info_t *sf_info;
+#endif
 
 	    if (!work->ion_handles[i])
 		    continue;
 
 	    /* configure buffer */
 	    memset(&data, 0, sizeof(ion_mm_data_t));
+#ifdef CONFIG_ARCH_MT8127_TANK
+	    data.mm_cmd = ION_MM_GET_SF_BUF_INFO;
+#else
 	    data.mm_cmd = ION_MM_GET_DEBUG_INFO;
+#endif
 	    data.config_buffer_param.kernel_handle = ion_handles[i];
 	    ion_kernel_ioctl(fbdev->ion_client, ION_CMD_MULTIMEDIA, (unsigned long)&data);
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+		sf_info = (struct gralloc_extra_ion_sf_info_t *)data.sf_buf_info_param.info;
+		if ((sf_info->status & GRALLOC_EXTRA_MASK_TYPE) !=
+#else
    	    if ((data.buf_debug_info_param.value4 & GRALLOC_EXTRA_MASK_TYPE) !=
+#endif
 	         GRALLOC_EXTRA_BIT_TYPE_CPU)
 		  continue;
 
@@ -1373,6 +1452,9 @@ static void mtkfb_update_ovls_handler(struct work_struct* _work)
     atomic_set(&OverlaySettingDirtyFlag, 1);
     atomic_set(&OverlaySettingApplied, 0);
 #endif
+#if MTK_DISP_DIRECTLINK
+    atomic_set(&OverlaySettingApplied, 0);
+#endif
 
     mutex_unlock(&OverlaySettingMutex);
 
@@ -1380,6 +1462,14 @@ static void mtkfb_update_ovls_handler(struct work_struct* _work)
     DISP_StartConfigUpdate();
 
     /* We can't really recover from wait errors so just log and soldier on */
+#if MTK_DISP_DIRECTLINK
+    ret = wait_event_interruptible_timeout(reg_update_wq, atomic_read(&OverlaySettingApplied), wait_time);
+    if (ret < 0) {
+        pr_warn(" wait for OverlaySettingApplied interrupted, tearing risk\n");
+    } else if (ret == 0) {
+        pr_warn(" wait for OverlaySettingApplied timed out, tearing risk\n");
+    }
+#else
 #ifdef MTK_OVERLAY_ENGINE_SUPPORT
     ret = Disp_Ovl_Engine_Wait_Overlay_Complete(mtkfb_instance, wait_time);
     if (ret < 0) {
@@ -1398,10 +1488,16 @@ static void mtkfb_update_ovls_handler(struct work_struct* _work)
         pr_warn(" wait for OverlaySettingApplied timed out, tearing risk\n");
     }
 #endif
+#endif
 
 out:
 	/* Free old configs & inc timeline */
-    #if 0
+#if MTK_DISP_DIRECTLINK
+    if (is_last_config)
+    {
+        list_add_tail(&work->list, &fbdev->pending_configs);
+        printk("this is the last config, disable all layers\n");
+    }
 	tmp_list = fbdev->pending_configs;
 	list_replace_init(&fbdev->pending_configs, &tmp_list);
 	list_for_each_entry_safe(curr, tmp, &tmp_list, list) 
@@ -1428,7 +1524,10 @@ out:
 
     /* This work, and (possibly) its ion handles can't be freed
 	   until next config is applied */
+    if (!is_last_config)
+    {
 	list_add_tail(&work->list, &fbdev->pending_configs);
+    }
 
     mutex_lock(&fbdev->timeline_lock);
 	sw_sync_timeline_inc(fbdev->timeline, inc);
@@ -1473,6 +1572,45 @@ int mtkfb_queue_overlay_config(struct mtkfb_device *fbdev, struct fb_overlay_con
     struct sync_fence *fence;
     struct sync_pt *pt;
     int i, fd = -1, ret = 0;
+#if MTK_TVSTICK_HDMI_PATH
+    bool drop_this_frame = false;
+    static bool prefrmae_drop = false;
+
+    if ((fbdev->timeline_max - fbdev->timeline->value > 3) && (!prefrmae_drop))
+    {
+        for (i = 0; i < HW_OVERLAY_COUNT; i ++)
+        {
+            if (config->layers[i].layer_enable && MTK_FB_FORMAT_YUV422 == config->layers[i].src_fmt)
+            {
+                if (1 == config->layers[i].security  || fbdev->timeline_max - fbdev->timeline->value > 4)
+                {
+                    drop_this_frame = true;
+                }
+                break;
+            }
+        }
+
+        if (drop_this_frame)
+        {
+            for (i = 0; i < HW_OVERLAY_COUNT; i ++)
+            {
+                struct sync_fence *ovl_fence;
+                if (config->layers[i].fence_fd >= 0)
+                {
+                    ovl_fence = sync_fence_fdget(config->layers[i].fence_fd);
+                    sync_fence_put(ovl_fence);
+                    ovl_fence = NULL;
+                }
+            }
+            config->fence = -1;
+            prefrmae_drop = true;
+            MTKFB_MSG("drop this frame, take %d frame\n", fbdev->timeline_max - fbdev->timeline->value);
+            return 0;
+        }
+    }
+
+    prefrmae_drop = false;
+#endif
 
     if (down_interruptible(&sem_early_suspend)) {
         dev_err(fbdev->dev, "semaphore down failed in %s\n", __func__);
@@ -2289,12 +2427,28 @@ static int mtkfb_ioctl(struct file *file, struct fb_info *info, unsigned int cmd
                     config.layers[i].fence_fd,
                     config.layers[i].ion_fd,
                     config.layers[i].security);  
+#if MTK_TVSTICK_HDMI_PATH
+                if (config.layers[i].layer_enable && (0 == config.layers[i].src_width || 0 == config.layers[i].src_height))
+                {
+                    config.layers[i].layer_enable = 0;
+                    printk("disable abnormal layer %d\n", i);
+                }
+#endif
         }        
 
+#if MTK_TVSTICK_HDMI_PATH
+		if ((!is_early_suspended) && video_config_status) {
+#endif
         if (!g_fb_pattern_en)
             r = mtkfb_queue_overlay_config((struct mtkfb_device *)info->par, &config);
         else
             r = fb_pattern((struct mtkfb_device *)info->par, &config);
+#if MTK_TVSTICK_HDMI_PATH
+		} else {
+			config.fence = -1;
+            printk("has been suspend %d, not queue config\n", is_early_suspended);
+		}
+#endif
 
         if (copy_to_user((void __user *)arg, &config, sizeof(config))) {
             MTKFB_LOG("[FB]: copy_to_user failed! line:%d \n", __LINE__);
@@ -2367,8 +2521,13 @@ static int mtkfb_ioctl(struct file *file, struct fb_info *info, unsigned int cmd
     case MTKFB_POWEROFF:
     {
         MTKFB_FUNC();
+#ifdef CONFIG_MTK_LEDS
         mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_OFF);
+#endif
         printk("[IOCTL] FB_POWEROFF\n");
+#if MTK_TVSTICK_HDMI_PATH
+        return 0;
+#endif
 
         if (!lcd_fps)
                 msleep(30);
@@ -2467,6 +2626,9 @@ static int mtkfb_ioctl(struct file *file, struct fb_info *info, unsigned int cmd
     {
         MTKFB_FUNC();
 	    printk("[IOCTL] FB_POWERON\n");
+#if MTK_TVSTICK_HDMI_PATH
+        return 0;
+#endif
         if (down_interruptible(&sem_early_suspend))
         {
             pr_info("[FB Driver] can't get semaphore in mtkfb_late_resume()\n");
@@ -3062,7 +3224,12 @@ static void mtkfb_fb_565_to_8888(struct fb_info *fb_info)
     unsigned int yres = fb_info->var.yres;
     unsigned int x_virtual = ALIGN_TO(xres,disphal_get_fb_alignment());
 
+#if MTK_DISP_DIRECTLINK
+    unsigned int y_virtual = ALIGN_TO(yres,disphal_get_fb_alignment());
+    unsigned int fbsize = x_virtual * y_virtual * 2;
+#else
     unsigned int fbsize = x_virtual * yres * 2;
+#endif
 
     unsigned short *s = (unsigned short*) fb_info->screen_base;
     unsigned int   *d = (unsigned int*) (fb_info->screen_base + fbsize * 2);
@@ -3076,6 +3243,11 @@ static void mtkfb_fb_565_to_8888(struct fb_info *fb_info)
     PRNERR("mtkfb_fb_565_to_8888 xres=%d yres=%d fbsize=0x%X x_virtual=%d s=0x%08X d=0x%08X\n",
                  xres, yres, fbsize, x_virtual, s, d);
     //printf("[boot_logo_updater]normal\n");
+#if MTK_TVSTICK_HDMI_PATH
+	if ((get_boot_mode() == FACTORY_BOOT || get_boot_mode() ==  RECOVERY_BOOT) &&
+			(MTK_FB_XRES == 1280)) {
+	} else
+#endif
     for (j = 0; j < yres; ++ j){
         for(k = 0; k < xres; ++ k)
         {
@@ -3099,9 +3271,11 @@ static void mtkfb_fb_565_to_8888(struct fb_info *fb_info)
     wait_ret = wait_event_interruptible_timeout(reg_update_wq, atomic_read(&OverlaySettingApplied), HZ/10);
     MTKFB_LOG("[WaitQ] wait_event_interruptible() ret = %d, %d\n", wait_ret, __LINE__);
 
+#if !MTK_DISP_DIRECTLINK
     s = (unsigned short *)fb_info->screen_base;
     d = (unsigned int *) (fb_info->screen_base + fbsize * 2);
     memcpy(s,d,fbsize*2);
+#endif
 }
 
 
@@ -3163,6 +3337,14 @@ static int mtkfb_probe(struct device *dev)
 
     MTK_FB_XRES  = DISP_GetScreenWidth();
     MTK_FB_YRES  = DISP_GetScreenHeight();
+#if MTK_TVSTICK_HDMI_PATH
+	if (get_boot_mode() == FACTORY_BOOT ||
+			get_boot_mode() == RECOVERY_BOOT) {
+		HDMI_VIDEO_RESOLUTION res =  hdmi_get_resolution();
+		MTK_FB_XRES = hdmi_get_width(res);
+		MTK_FB_YRES = hdmi_get_height(res);
+	}
+#endif
     fb_xres_update = MTK_FB_XRES;
     fb_yres_update = MTK_FB_YRES;
 
@@ -3247,6 +3429,12 @@ static int mtkfb_probe(struct device *dev)
         goto cleanup;
     }
 
+#if MTK_TVSTICK_HDMI_PATH
+	MTKFB_MSG("MTKFB turns off DPI and LCM\n");
+	DISP_CHECK_RET(DISP_PanelEnable(FALSE));
+	DISP_CHECK_RET(DISP_PowerEnable(FALSE));
+#endif
+
     init_state++;   // 3
 #if defined(MTK_OVERLAY_ENGINE_SUPPORT)
     disp_ovl_engine_init();
@@ -3258,7 +3446,11 @@ static int mtkfb_probe(struct device *dev)
         goto cleanup;
     }
 
+#if MTK_DISP_DIRECTLINK
+	disp_ovl_engine_direct_link_overlay();
+#else
     disp_ovl_engine_indirect_link_overlay(fbdev->fb_va_base, fbdev->fb_pa_base);
+#endif
 #endif //defined(MTK_OVERLAY_ENGINE_SUPPORT)
 
     /* Android native fence support */
@@ -3371,7 +3563,9 @@ static void mtkfb_shutdown(struct device *pdev)
 {
     MTKFB_LOG("[FB Driver] mtkfb_shutdown()\n");
 	disp_bls_shutdown(1);
+#ifdef CONFIG_MTK_LEDS
     mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_OFF);
+#endif
     /*disp_bls_contrl_directly(0);*/
     if (!lcd_fps)
         msleep(30);
@@ -3392,7 +3586,14 @@ static void mtkfb_shutdown(struct device *pdev)
     is_early_suspended = TRUE;
     DISP_PrepareSuspend();
 
+#if MTK_TVSTICK_HDMI_PATH
+    /* Wait for disp finished.*/
+    if (wait_event_interruptible_timeout(disp_done_wq, !disp_running, HZ/10) == 0) {
+	pr_info("[FB Driver] Wait disp finished timeout in mtkfb_shutdown\n");
+    }
+#else
 	wait_dsi_engine_notbusy();
+#endif
     DISP_CHECK_RET(DISP_PanelEnable(FALSE));
     DISP_CHECK_RET(DISP_PowerEnable(FALSE));
 
@@ -3470,6 +3671,255 @@ void mtkfb_clear_lcm(void)
     mutex_unlock(&OverlaySettingMutex);
 #endif
 }
+
+#if MTK_DISP_DIRECTLINK
+#include "ddp_reg.h"
+
+int pause_direct_link_path(void)
+{
+    pr_err("pause direct link path start\n");
+
+    if (atomic_add_negative(-1, &DL_pause_progress) == false)
+        return 0;
+
+    if (down_interruptible(&sem_early_suspend)) {
+        pr_err("semaphore down failed in %s\n", __func__);
+        return 0;
+    }
+
+    if (is_early_suspended)
+    {
+        up(&sem_early_suspend);
+        printk("pause direct link path had been suspend %d\n", is_early_suspended);
+        return 0;
+    }
+    is_early_suspended = TRUE;
+    up(&sem_early_suspend);
+    atomic_set(&DL_pause_progress, 1);
+    struct fb_overlay_config config;
+    struct sync_fence *fence;
+
+    config.layers[0].layer_id = 0;
+    config.layers[0].layer_enable = 0;
+    config.layers[0].fence_fd = -1;
+    config.layers[0].ion_fd = -1;
+    config.layers[1].layer_id = 1;
+    config.layers[1].layer_enable = 0;
+    config.layers[1].fence_fd = -1;
+    config.layers[1].ion_fd = -1;
+    config.layers[2].layer_id = 2;
+    config.layers[2].layer_enable = 0;
+    config.layers[2].fence_fd = -1;
+    config.layers[2].ion_fd = -1;
+    config.layers[3].layer_id = 3;
+    config.layers[3].layer_enable = 0;
+    config.layers[3].fence_fd = -1;
+    config.layers[3].ion_fd = -1;
+
+    mtkfb_queue_overlay_config((struct mtkfb_device *)mtkfb_fbi->par, &config);
+    if (config.fence != -1) {
+        fence = sync_fence_fdget(config.fence);
+        if (sync_fence_wait(fence, 1000) < 0)
+            pr_err("pause direct link path error waiting for fence to signal\n");
+        sync_fence_put(fence);
+        put_unused_fd(config.fence);
+    }
+
+    if (down_interruptible(&sem_early_suspend)) {
+        atomic_set(&DL_pause_progress, 0);
+        is_early_suspended = FALSE;
+        pr_err("semaphore down failed in %s\n", __func__);
+        return 0;
+    }
+
+    DISP_REG_SET(DISP_REG_CONFIG_MUTEX_SOF(0), 0x0);
+    DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTSTA, 0);
+
+    RDMAStop(0);
+    RDMAReset(0);
+    OVLStop();
+    OVLReset();
+
+    DISP_REG_SET(DISP_REG_RDMA_INT_STATUS, 0);
+    DISP_REG_SET(DISP_REG_OVL_INTSTA, 0);
+    pr_err("get layer en: 0x%x\n", DISP_REG_GET(DISP_REG_OVL_SRC_CON));
+    atomic_set(&DL_pause_progress, 0);
+    up(&sem_early_suspend);
+
+    pr_err("pause direct link path end\n");
+
+    return 1;
+}
+
+
+int continue_direct_link_path(void)
+{
+    pr_err("continue direct link path start\n");
+
+    if(atomic_add_negative(-1, &DL_resume_progress) == false)
+        return 0;
+
+    if (down_interruptible(&sem_early_suspend)) {
+		pr_err("semaphore down failed in %s\n", __func__);
+		return 0;
+	}
+
+    if (!is_early_suspended) {
+		up(&sem_early_suspend);
+		printk("continue direct link path start had been resumed %d\n", is_early_suspended);
+		return 0;
+    }
+    atomic_set(&DL_resume_progress, 1);
+	DISP_REG_SET(DISP_REG_RDMA_INT_STATUS, 0);
+    DISP_REG_SET(DISP_REG_OVL_INTSTA, 0);
+
+	DISP_REG_SET(DISP_REG_CONFIG_MUTEX_SOF(0), 0x3);
+	DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTEN, 0x201);
+	OVLStart();
+	RDMAStart(0);
+
+	is_early_suspended = FALSE;
+        atomic_set(&DL_resume_progress, 0);
+	up(&sem_early_suspend);
+
+	pr_err("continue direct link path end\n");
+
+    return 1;
+
+}
+
+int mtkfb_pause_direct_link_path(void)
+{
+    pr_err("mtkfb pause direct link path start\n");
+
+    if (atomic_add_negative(-1, &DL_pause_progress) == false)
+        return 0;
+
+    int ret = 0;
+
+    if (down_interruptible(&sem_early_suspend)) {
+        pr_err("semaphore down failed in %s\n", __func__);
+        return 0;
+    }
+
+    if (is_early_suspended)
+    {
+        up(&sem_early_suspend);
+        printk("mtkfb pause direct link path had been suspend %d\n", is_early_suspended);
+        return 0;
+    }
+    is_early_suspended_done = FALSE;
+    is_early_suspended = TRUE;
+	up(&sem_early_suspend);
+
+    atomic_set(&DL_pause_progress, 1);
+    struct fb_overlay_config config;
+	struct sync_fence *fence;
+
+	config.layers[0].layer_id = 0;
+    config.layers[0].layer_enable = 0;
+    config.layers[0].fence_fd = -1;
+    config.layers[0].ion_fd = -1;
+    config.layers[1].layer_id = 1;
+    config.layers[1].layer_enable = 0;
+    config.layers[1].fence_fd = -1;
+    config.layers[1].ion_fd = -1;
+    config.layers[2].layer_id = 2;
+    config.layers[2].layer_enable = 0;
+    config.layers[2].fence_fd = -1;
+    config.layers[2].ion_fd = -1;
+    config.layers[3].layer_id = 3;
+    config.layers[3].layer_enable = 0;
+    config.layers[3].fence_fd = -1;
+    config.layers[3].ion_fd = -1;
+
+    mtkfb_queue_overlay_config((struct mtkfb_device *)mtkfb_fbi->par, &config);
+    if (config.fence != -1) {
+        fence = sync_fence_fdget(config.fence);
+        if (sync_fence_wait(fence, 1000) < 0)
+            pr_err("mtkfb pause direct link path error waiting for fence to signal\n");
+        sync_fence_put(fence);
+        put_unused_fd(config.fence);
+    }
+
+    if (down_interruptible(&sem_early_suspend)) {
+        is_early_suspended = FALSE;
+        atomic_set(&DL_pause_progress, 0);
+        pr_err("semaphore down failed in %s\n", __func__);
+        return 0;
+    }
+
+    DISP_PrepareSuspend();
+
+    DISP_CHECK_RET(DISP_PanelEnable(FALSE));
+    DISP_CHECK_RET(DISP_PowerEnable(FALSE));
+    DISP_CHECK_RET(DISP_PauseVsync(TRUE));
+
+    DISP_REG_SET(DISP_REG_CONFIG_MUTEX_SOF(0), 0x0);
+    DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTSTA, 0);
+    //DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTEN, 0);
+
+    RDMAStop(0);
+    RDMAReset(0);
+    OVLStop();
+    OVLReset();
+    DISP_REG_SET(DISP_REG_RDMA_INT_STATUS, 0);
+    DISP_REG_SET(DISP_REG_OVL_INTSTA, 0);
+
+    pr_err("get layer en: 0x%x\n", DISP_REG_GET(DISP_REG_OVL_SRC_CON));
+    disp_path_clock_off("mtkfb");
+
+	is_early_suspended_done = TRUE;
+    wake_up_interruptible(&suspend_done_wq);
+    atomic_set(&DL_pause_progress, 0);
+    up(&sem_early_suspend);
+
+    pr_err("mtkfb pause direct link path end\n");
+
+    return 1;
+}
+
+int mtkfb_continue_direct_link_path(void)
+{
+    pr_err("mtkfb continue direct link path start\n");
+
+    if(atomic_add_negative(-1, &DL_resume_progress) == false)
+        return 0;
+
+    if (down_interruptible(&sem_early_suspend)) {
+		pr_err("semaphore down failed in %s\n", __func__);
+		return 0;
+	}
+
+    if (!is_early_suspended) {
+		up(&sem_early_suspend);
+		printk("mtkfb continue direct link path start had been resumed %d\n", is_early_suspended);
+		return 0;
+    }
+    atomic_set(&DL_resume_progress, 1);
+    disp_path_clock_on("mtkfb");
+
+    DISP_CHECK_RET(DISP_PauseVsync(FALSE));
+    DISP_CHECK_RET(DISP_PowerEnable(TRUE));
+    DISP_CHECK_RET(DISP_PanelEnable(TRUE));
+
+	DISP_REG_SET(DISP_REG_RDMA_INT_STATUS, 0);
+    DISP_REG_SET(DISP_REG_OVL_INTSTA, 0);
+
+	DISP_REG_SET(DISP_REG_CONFIG_MUTEX_SOF(0), 0x3);
+	DISP_REG_SET(DISP_REG_CONFIG_MUTEX_INTEN, 0x201);
+	OVLStart();
+	RDMAStart(0);
+
+	is_early_suspended = FALSE;
+        atomic_set(&DL_resume_progress, 0);
+	up(&sem_early_suspend);
+
+	pr_err("mtkfb continue direct link path end\n");
+
+    return 1;
+}
+#endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 void mtkfb_clear_lcm_test(void)
@@ -3556,7 +4006,9 @@ void mtkfb_early_suspend_test()
     mutex_lock(&ScreenCaptureMutex);
 
 
+#ifdef CONFIG_MTK_LEDS
     mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_OFF);
+#endif
     if (down_interruptible(&sem_early_suspend)) {
         printk("[FB Driver] can't get semaphore in mtkfb_early_suspend()\n");
         mutex_unlock(&ScreenCaptureMutex);
@@ -3662,6 +4114,10 @@ void mtkfb_early_suspend_test()
 
 static void mtkfb_early_suspend(struct early_suspend *h)
 {
+#if MTK_DISP_DIRECTLINK
+    printk("[FB Driver] enter early_suspend\n");
+    return;
+#else
     struct fb_overlay_config config;
     struct sync_fence *fence;
 	int wait_cnt = 0;
@@ -3675,7 +4131,9 @@ static void mtkfb_early_suspend(struct early_suspend *h)
     mutex_lock(&ScreenCaptureMutex);
 
 
+#ifdef CONFIG_MTK_LEDS
     mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_OFF);
+#endif
     if (down_interruptible(&sem_early_suspend)) {
         printk("[FB Driver] can't get semaphore in mtkfb_early_suspend()\n");
         mutex_unlock(&ScreenCaptureMutex);
@@ -3777,6 +4235,7 @@ static void mtkfb_early_suspend(struct early_suspend *h)
     pr_info("[FB Driver] leave early_suspend\n");
 
     MSG_FUNC_LEAVE();
+#endif
 }
 #endif
 
@@ -3855,7 +4314,9 @@ void mtkfb_late_resume_test()
 //#if defined(MTK_OVERLAY_ENGINE_SUPPORT)
 //#ifdef CONFIG_MTK_LEDS
 	//if (!disp_ovl_engine.bCouple)
+#ifdef CONFIG_MTK_LEDS
 		mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_HALF);
+#endif
 //#endif
 //#endif
     pr_info("[FB Driver] leave late_resume\n");
@@ -3869,6 +4330,9 @@ static void mtkfb_late_resume(struct early_suspend *h)
     MSG_FUNC_ENTER();
 
     printk("[FB Driver] enter late_resume\n");
+#if MTK_DISP_DIRECTLINK
+    return;
+#else
 
     mutex_lock(&ScreenCaptureMutex);
     if (down_interruptible(&sem_early_suspend)) {
@@ -3936,6 +4400,7 @@ static void mtkfb_late_resume(struct early_suspend *h)
     pr_info("[FB Driver] leave late_resume\n");
 
     MSG_FUNC_LEAVE();
+#endif
 }
 #endif
 

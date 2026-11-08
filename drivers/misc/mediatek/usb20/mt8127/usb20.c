@@ -73,6 +73,57 @@ static struct musb_fifo_cfg __initdata fifo_cfg[] = {
 };
 
 static struct timer_list musb_idle_timer;
+#ifdef CONFIG_GPIO_USB_DEFAULT_DEVICE_MODE
+static struct timer_list musb_device_timer;
+#if 1 //CONFIG_Y_CABLE
+static int lk_y_cable;
+
+extern void mt_usb_ext_iddig_int(void);
+#endif
+
+struct delayed_work change_device_work;
+static void musb_change_device_work(struct work_struct *data)
+{
+#if 1 //CONFIG_Y_CABLE
+	if (1 == lk_y_cable) /* host mode*/
+	{
+		if(mtk_musb->is_active){
+			if(mtk_musb->is_host){/*from host mode*/
+				printk("[USB] error!!!!!!!!\n");
+			}else{//from device
+				printk("[USB]%s:%d step: 1\n", __FUNCTION__, __LINE__);
+				#if 1
+				//step1, goto idle mode
+				mt_usb_disconnect();
+				printk("[USB]%s:%d step: 2\n", __FUNCTION__, __LINE__);
+				//step2, wait a while
+				msleep(1000);
+				printk("[USB]%s:%d step: 3\n", __FUNCTION__, __LINE__);
+				//step3, change to host mode
+				#endif
+				mt_usb_ext_iddig_int();
+				printk("[USB]%s:%d step: done\n", __FUNCTION__, __LINE__);
+			}
+		}else{//from idle or suspend
+			//directly change to host mode
+			mt_usb_ext_iddig_int();
+			printk("[USB]%s:%d step: done\n", __FUNCTION__, __LINE__);
+		}
+	} else {
+		mt_usb_connect();
+		mod_timer(&musb_device_timer, jiffies + msecs_to_jiffies(6000));
+	}
+#else
+	mt_usb_connect();
+	mod_timer(&musb_device_timer, jiffies + msecs_to_jiffies(500));
+#endif
+}
+
+static void musb_change_device(unsigned long _musb)
+{
+	schedule_work(&change_device_work);
+}
+#endif
 
 static void musb_do_idle(unsigned long _musb)
 {
@@ -321,6 +372,18 @@ bool usb_cable_connected(void)
 	//ALPS00775710
 	int iddig_state = 1;
 
+#ifdef CONFIG_CMD_MODE_CHANGE
+	if(mtk_musb->force_mode == USB_FORCE_HOST) {
+			printk("[USB]%s:%d is_host:%d\n", __FUNCTION__, __LINE__, mtk_musb->is_host);
+			iddig_state = 0;
+	}else if(mtk_musb->force_mode == USB_FORCE_DEVICE) {
+		printk("[USB]%s:%d is_host:%d\n", __FUNCTION__, __LINE__, mtk_musb->is_host);
+		iddig_state = 1;
+	}else{
+		printk("[USB]%s:%d error !!!!! is_host:%d\n", __FUNCTION__, __LINE__, mtk_musb->is_host);
+	}
+	DBG(0,"iddig_state = %d\n", iddig_state);
+#else
 	iddig_state = mt_get_gpio_in(GPIO_OTG_IDDIG_EINT_PIN);
 	DBG(0, "iddig_state = %d\n", iddig_state);
 #if CONFIG_AUSTIN_PROJECT
@@ -333,6 +396,7 @@ bool usb_cable_connected(void)
 			DBG(0, "iddig_state = %d after sleep 50ms\n", iddig_state);
 		}
 	}
+#endif
 #endif
 
 	if(!iddig_state)
@@ -843,6 +907,25 @@ static int add_usb_i2c_driver(void)
 }
 #endif //End of FPGA_PLATFORM
 
+#ifdef CONFIG_GPIO_USB_DEFAULT_DEVICE_MODE
+static int __init usb_y_cable_setup(char *str)
+{
+	printk("[MUSB]usb_y_cable_setup [%s]!\n", str);
+
+	if (!strcmp(str, "1")) /*host mode */
+		lk_y_cable = 1;
+	else if (!strcmp(str, "0"))
+		lk_y_cable = 0;
+	else
+		lk_y_cable = 0;
+
+	printk("[MUSB]usb_y_cable value %d!\n", lk_y_cable);
+
+	return 1;
+}
+__setup("y_cable=", usb_y_cable_setup);
+#endif
+
 static int mt_usb_init(struct musb *musb)
 {
 	DBG(0,"mt_usb_init \n");
@@ -878,16 +961,34 @@ static int mt_usb_init(struct musb *musb)
 
     setup_timer(&musb_idle_timer, musb_do_idle, (unsigned long) musb);
 
+#ifdef CONFIG_GPIO_USB_DEFAULT_DEVICE_MODE
+#ifdef CONFIG_CMD_MODE_CHANGE
+	musb->force_mode = USB_FORCE_DEVICE;
+#endif
+#if 1 //CONFIG_Y_CABLE
+	if (1 == lk_y_cable) /* host mode*/
+		musb->force_mode = USB_FORCE_HOST;
+#endif
+	INIT_DELAYED_WORK(&change_device_work, musb_change_device_work);
+    setup_timer(&musb_device_timer, musb_change_device, (unsigned long) musb);
+#endif
+
 #ifdef CONFIG_USB_MTK_OTG
 	mt_usb_otg_init(musb);
 #endif
 
+#ifdef CONFIG_GPIO_USB_DEFAULT_DEVICE_MODE
+    mod_timer(&musb_device_timer, jiffies + msecs_to_jiffies(6000));
+#endif
     return 0;
 }
 
 static int mt_usb_exit(struct musb *musb)
 {
     del_timer_sync(&musb_idle_timer);
+#ifdef CONFIG_GPIO_USB_DEFAULT_DEVICE_MODE
+    del_timer_sync(&musb_device_timer);
+#endif
 	return 0;
 }
 

@@ -170,6 +170,10 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 	}
 
 	if (err && cmd->retries && !mmc_card_removed(host->card)) {
+
+		trace_mmc_all_resp(cmd->opcode,
+				       err, 
+				       cmd->arg);
 		/*
 		 * Request starter must handle retries - see
 		 * mmc_wait_for_req_done().
@@ -185,6 +189,11 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 			mmc_hostname(host), cmd->opcode, err,
 			cmd->resp[0], cmd->resp[1],
 			cmd->resp[2], cmd->resp[3]);
+
+
+		trace_mmc_all_resp(cmd->opcode,
+				       0,
+				       cmd->resp[0]);
 
 		if (mrq->data) {
 			pr_debug("%s:     %d bytes transferred: %d\n",
@@ -217,6 +226,10 @@ mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 	unsigned int i, sz;
 	struct scatterlist *sg;
 #endif
+
+	trace_mmc_all_cmd(mrq->cmd->opcode,
+				       mrq->cmd->arg,
+				       mrq->cmd->flags);
 
 	if (mrq->sbc) {
 		pr_debug("<%s: starting CMD%u arg %08x flags %08x>\n",

@@ -19,6 +19,10 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/video \
 ccflags-y += -I$(srctree)/include/trustzone/tz_cross/
 ccflags-y += -I$(srctree)/include/trustzone/
 
+ifeq ($(CONFIG_ARCH_MT8127_TANK), y)
+ccflags-y += -DCONFIG_CMDQ_DMAPOOL_SUPPORT
+endif
+
 #TODO: the header file under "protect-bsp" folder does not exist for customer release codebase.
 
 obj-y += ddp_drv.o
@@ -34,6 +38,7 @@ obj-y += ddp_path.o
 obj-y += ddp_debug.o
 obj-y += ddp_cmdq.o
 obj-y += ddp_cmdq_debug.o
+obj-$(CONFIG_ARCH_MT8127_TANK) += cmdq_dma_pool.o
 #obj-y += ddp_cmdq_record.o
 #obj-y += ddp_cmdq_test.o
 # obj-y += ddp_dpfd.o
@@ -46,4 +51,8 @@ obj-y += ddp_cmdq_sec.o
 
 ifeq ($(MTK_ALPS_BOX_SUPPORT), yes)
 ccflags-y += -DMTK_ALPS_BOX_SUPPORT
+endif
+
+ifeq ($(CONFIG_MTK_AOSP_TVSTICK_SUPPORT), y)
+ccflags-y += -DMTK_AOSP_TVSTICK_SUPPORT
 endif

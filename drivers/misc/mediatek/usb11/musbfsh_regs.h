@@ -167,6 +167,10 @@
 #define MUSBFSH_TXCSR_H_RXSTALL		0x0020
 #define MUSBFSH_TXCSR_H_ERROR		0x0004
 
+//Enable DMA RxMode1
+#define MUSBFSH_EP_RXPKTCOUNT			0x0300
+//Enable DMA RxMode1
+
 /* TXCSR bits to avoid zeroing (write zero clears, write 1 ignored) */
 #define MUSBFSH_TXCSR_P_WZC_BITS	\
 	(MUSBFSH_TXCSR_P_INCOMPTX | MUSBFSH_TXCSR_P_SENTSTALL \

@@ -64,12 +64,12 @@ static int disp_ovl_engine_open(struct inode *inode, struct file *file)
         {
             return -1;
         }
-    } 
+    }
     else
     {
         return -1;
     }
-	
+
     return 0;
 }
 
@@ -127,7 +127,7 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
             struct fb_overlay_layer laye_info;
 
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_GET_LAYER_INFO\n", cmd&0xff);
-			
+
             if(copy_from_user(&laye_info, (void __user *)arg, sizeof(struct fb_overlay_layer)))
             {
                 return -EFAULT;
@@ -137,7 +137,7 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
 
             if (copy_to_user((void __user *)arg, &laye_info, sizeof(struct fb_overlay_layer))) {
                 return -EFAULT;
-            }			
+            }
         }
         break;
     case DISP_OVL_ENGINE_IOCTL_SET_LAYER_INFO:
@@ -145,13 +145,13 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
             struct fb_overlay_layer laye_info;
 
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_SET_LAYER_INFO\n", cmd&0xff);
-			
+
             if(copy_from_user(&laye_info, (void __user *)arg, sizeof(struct fb_overlay_layer)))
             {
                 return -EFAULT;
             }
 
-			Disp_Ovl_Engine_Set_layer_info(handle,&laye_info);		
+			Disp_Ovl_Engine_Set_layer_info(handle,&laye_info);
         }
         break;
     case DISP_OVL_ENGINE_IOCTL_SET_OVERLAYED_BUF:
@@ -160,12 +160,12 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
             int ret = 0;
 
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_SET_OVERLAYED_BUF\n", cmd&0xff);
-            
+
             if(copy_from_user(&overlayedBufInfo, (void __user *)arg, sizeof(struct disp_ovl_engine_config_mem_out_struct)))
             {
                 return -EFAULT;
             }
-
+            DISP_OVL_ENGINE_INFO("DISP_OVL_ENGINE_IOCTL_SET_OVERLAYED_BUF dst_addr:0x%x\n", overlayedBufInfo.dstAddr);
 			ret = Disp_Ovl_Engine_Set_Overlayed_Buffer(handle,&overlayedBufInfo);
 
             return ret;
@@ -174,8 +174,8 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
     case DISP_OVL_ENGINE_IOCTL_TRIGGER_OVERLAY:
         {
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_TRIGGER_OVERLAY\n", cmd&0xff);
-            
-			return Disp_Ovl_Engine_Trigger_Overlay(handle);		
+
+			return Disp_Ovl_Engine_Trigger_Overlay(handle);
         }
         break;
     case DISP_OVL_ENGINE_IOCTL_TRIGGER_OVERLAY_FENCE:
@@ -190,13 +190,13 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
                 return -EFAULT;
             }
 
-            ret = Disp_Ovl_Engine_Trigger_Overlay_Fence(handle,&setting); 
+            ret = Disp_Ovl_Engine_Trigger_Overlay_Fence(handle,&setting);
 
             if (copy_to_user((void __user *)arg, &setting, sizeof(struct disp_ovl_engine_setting))) {
                 return -EFAULT;
-            }			
+            }
 
-            return ret;     
+            return ret;
         }
         break;
     case DISP_OVL_ENGINE_IOCTL_GET_FENCE_FD:
@@ -210,7 +210,7 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
 
             if (copy_to_user((void __user *)arg, &fence_fd, sizeof(int))) {
                 return -EFAULT;
-            }       
+            }
 
             return ret;
         }
@@ -221,24 +221,24 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
 
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_WAIT_OVERLAY_COMPLETE\n", cmd&0xff);
 
-            return Disp_Ovl_Engine_Wait_Overlay_Complete(handle,timeout);		
+            return Disp_Ovl_Engine_Wait_Overlay_Complete(handle,timeout);
         }
         break;
-    case DISP_OVL_ENGINE_IOCTL_SECURE_MVA_MAP:			 
+    case DISP_OVL_ENGINE_IOCTL_SECURE_MVA_MAP:
 	    {
 			struct disp_mva_map mva_map_struct;
 
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_SECURE_MVA_MAP\n", cmd&0xff);
-            
+
 			if(copy_from_user(&mva_map_struct, (void *)arg, sizeof(struct disp_mva_map )))
 			{
 				DISP_OVL_ENGINE_ERR("DISP_SECURE_MVA_MAP, copy_from_user failed\n");
 				return -EFAULT;
 			}
-			DISP_OVL_ENGINE_INFO("map_mva, module=%d, cache=%d, addr=0x%x, size=0x%x \n", 
-				mva_map_struct.module, 
-				mva_map_struct.cache_coherent, 
-				mva_map_struct.addr, 
+			DISP_OVL_ENGINE_INFO("map_mva, module=%d, cache=%d, addr=0x%x, size=0x%x \n",
+				mva_map_struct.module,
+				mva_map_struct.cache_coherent,
+				mva_map_struct.addr,
 				mva_map_struct.size);
 
 			if(mva_map_struct.addr==0)
@@ -250,23 +250,23 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
 				disp_ovl_engine_hw_mva_map(&mva_map_struct);
 			}
 		}
-		break;	
-		
-    case DISP_OVL_ENGINE_IOCTL_SECURE_MVA_UNMAP: 		   
+		break;
+
+    case DISP_OVL_ENGINE_IOCTL_SECURE_MVA_UNMAP:
 	    {
 			struct disp_mva_map mva_map_struct;
 
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_SECURE_MVA_UNMAP\n", cmd&0xff);
-            
+
 			if(copy_from_user(&mva_map_struct, (void *)arg, sizeof(struct disp_mva_map )))
 			{
 				DISP_OVL_ENGINE_ERR("DISP_SECURE_MVA_UNMAP, copy_from_user failed\n");
 				return -EFAULT;
 			}
-			DISP_OVL_ENGINE_INFO("unmap_mva, module=%d, cache=%d, addr=0x%x, size=0x%x \n", 
-				mva_map_struct.module, 
-				mva_map_struct.cache_coherent, 
-				mva_map_struct.addr, 
+			DISP_OVL_ENGINE_INFO("unmap_mva, module=%d, cache=%d, addr=0x%x, size=0x%x \n",
+				mva_map_struct.module,
+				mva_map_struct.cache_coherent,
+				mva_map_struct.addr,
 				mva_map_struct.size);
 
 			if(mva_map_struct.addr==0)
@@ -278,7 +278,7 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
 				disp_ovl_engine_hw_mva_unmap(&mva_map_struct);
 			}
 		}
-		break;	
+		break;
 #ifdef DISP_OVL_ENGINE_REQUEST
     case DISP_OVL_ENGINE_IOCTL_GET_REQUEST:
         {
@@ -288,7 +288,7 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
 
 			if(Disp_Ovl_Engine_Get_Request(&overlayRequest))
 			{
-    			return -EFAULT;			
+    			return -EFAULT;
 			}
 
     		if(copy_to_user((void __user *)arg, &overlayRequest, sizeof(struct disp_ovl_engine_request_struct)))
@@ -297,23 +297,23 @@ static long disp_ovl_engine_unlocked_ioctl(struct file *file, unsigned int cmd, 
     		}
         }
         break;
-    case DISP_OVL_ENGINE_IOCTL_ACK_REQUEST: 	   
+    case DISP_OVL_ENGINE_IOCTL_ACK_REQUEST:
         {
             struct disp_ovl_engine_request_struct overlayRequest;
 
             DISP_OVL_ENGINE_INFO("disp_ovl_engine_unlocked_ioctl cmd: %d DISP_OVL_ENGINE_IOCTL_ACK_REQUEST\n", cmd&0xff);
-			
+
             if(copy_from_user(&overlayRequest, (void __user *)arg, sizeof(struct disp_ovl_engine_request_struct)))
             {
                 return -EFAULT;
             }
 
-			return Disp_Ovl_Engine_Ack_Request(&overlayRequest);		
+			return Disp_Ovl_Engine_Ack_Request(&overlayRequest);
         }
         break;
-#endif		
+#endif
     }
-	
+
     return 0;
 }
 
@@ -333,7 +333,7 @@ static int disp_ovl_engine_probe(struct platform_device *pdev)
 {
     int ret;
     struct class_device *class_dev = NULL;
-    
+
     ret = alloc_chrdev_region(&disp_ovl_engine_devno, 0, 1, DISP_OVL_ENGINE_DEVNAME);
 
     disp_ovl_engine_cdev = cdev_alloc();
@@ -399,10 +399,10 @@ static void __exit _disp_ovl_engine_exit(void)
 {
     cdev_del(disp_ovl_engine_cdev);
     unregister_chrdev_region(disp_ovl_engine_devno, 1);
-	
+
     platform_driver_unregister(&disp_ovl_engine_driver);
     platform_device_unregister(&disp_ovl_engine_device);
-	
+
     device_destroy(disp_ovl_engine_class, disp_ovl_engine_devno);
     class_destroy(disp_ovl_engine_class);
 }

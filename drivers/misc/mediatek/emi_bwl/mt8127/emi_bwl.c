@@ -265,10 +265,17 @@ int mtk_mem_bw_ctrl(int sce, int op)
     else if(get_ddr_type() == LPDDR3)
     {
       mt65xx_reg_sync_writel(emi_arba_lpddr3_val[highest], EMI_ARBA);
+#ifdef CONFIG_ARCH_MT8127_TANK
+      mt65xx_reg_sync_writel(emi_arbb_lpddr3_val[highest], EMI_ARBB);
+      mt65xx_reg_sync_writel(emi_arbc_lpddr3_val[highest], EMI_ARBC);
+      mt65xx_reg_sync_writel(emi_arbd_lpddr3_val[highest], EMI_ARBD);
+      mt65xx_reg_sync_writel(emi_arbe_lpddr3_val[highest], EMI_ARBE);
+#else
       mt65xx_reg_sync_writel(emi_arba_lpddr3_val[highest], EMI_ARBB);
       mt65xx_reg_sync_writel(emi_arba_lpddr3_val[highest], EMI_ARBC);
       mt65xx_reg_sync_writel(emi_arba_lpddr3_val[highest], EMI_ARBD);
       mt65xx_reg_sync_writel(emi_arba_lpddr3_val[highest], EMI_ARBE);       
+#endif
     }
 #endif    
       cur_con_sce = highest;

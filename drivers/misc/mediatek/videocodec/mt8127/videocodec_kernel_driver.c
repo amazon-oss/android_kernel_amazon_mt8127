@@ -580,6 +580,19 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                     if (grVcodecDecHWLock.pvHandle == (VAL_VOID_T*)pmem_user_v2p_video((unsigned int)rHWLock.pvHandle)) {
                         MFV_LOGE("[WARNING] one decoder instance try to lock twice, may cause lock HW timeout!! instance = 0x%x, CurrentTID = %d\n",
                             grVcodecDecHWLock.pvHandle, current->pid);
+#ifdef CONFIG_ARCH_MT8127_TANK
+                        vdec_power_off();
+#ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
+                        if (rHWLock.bSecureInst == VAL_FALSE)
+                        {
+                            /* disable_irq(MT_VDEC_IRQ_ID); */
+                            free_irq(MT_VDEC_IRQ_ID, NULL);
+                        }
+#else
+                        disable_irq(MT_VDEC_IRQ_ID);
+#endif
+                        grVcodecDecHWLock.pvHandle = 0;
+#endif
                     }
                     mutex_unlock(&VdecHWLock);
 
@@ -597,6 +610,18 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                             }
                             else {
                                 MFV_LOGE("[WARNING] someone use HW, and check timeout value!!\n");
+#ifdef CONFIG_ARCH_MT8127_TANK
+#ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
+                                if (rHWLock.bSecureInst == VAL_FALSE)
+                                {
+                                    /* disable_irq(MT_VDEC_IRQ_ID); */
+                                    free_irq(MT_VDEC_IRQ_ID, NULL);
+                                }
+#else
+                                disable_irq(MT_VDEC_IRQ_ID);
+#endif
+                                grVcodecDecHWLock.pvHandle = 0;
+#endif
                             }
                             mutex_unlock(&VdecHWLock);
                         }

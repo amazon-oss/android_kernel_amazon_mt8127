@@ -61,9 +61,9 @@ struct musbfsh_ep;
 #define MUSBFSH_HWVERS_2000	0x800
 
 #include <linux/musbfsh.h>
-#include "musbfsh_io.h"
-#include "musbfsh_regs.h"
-#include "musbfsh_debug.h"
+#include "../musbfsh_io.h"
+#include "../musbfsh_regs.h"
+#include "../musbfsh_debug.h"
 
 #include <linux/xlog.h>
 #include <linux/switch.h>

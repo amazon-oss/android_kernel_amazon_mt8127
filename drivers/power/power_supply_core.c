@@ -526,6 +526,7 @@ int power_supply_register(struct device *parent, struct power_supply *psy)
 	if (rc)
 		goto wakeup_init_failed;
 
+#ifndef CONFIG_ARCH_MT8127_TANK
 	rc = psy_register_thermal(psy);
 	if (rc)
 		goto register_thermal_failed;
@@ -533,6 +534,7 @@ int power_supply_register(struct device *parent, struct power_supply *psy)
 	rc = psy_register_cooler(psy);
 	if (rc)
 		goto register_cooler_failed;
+#endif
 
 	rc = power_supply_create_triggers(psy);
 	if (rc)

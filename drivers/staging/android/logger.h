@@ -100,7 +100,7 @@ struct logger_entry {
 #ifdef CONFIG_AMAZON_METRICS_LOG
 #ifndef __METRICS_BUF_SIZE
 #ifdef CONFIG_AMAZON_LOGD
-#define __METRICS_BUF_SIZE (32*1024)
+#define __METRICS_BUF_SIZE (16*1024)
 #else
 #define __METRICS_BUF_SIZE (128*1024)
 #endif /* CONFIG_AMAZON_LOGD */
@@ -138,7 +138,7 @@ struct logger_entry {
 #ifdef CONFIG_AMAZON_METRICS_LOG
 #ifndef __METRICS_BUF_SIZE
 #ifdef CONFIG_AMAZON_LOGD
-#define __METRICS_BUF_SIZE (32*1024)
+#define __METRICS_BUF_SIZE (16*1024)
 #else
 #define __METRICS_BUF_SIZE (128*1024)
 #endif /* CONFIG_AMAZON_LOGD */

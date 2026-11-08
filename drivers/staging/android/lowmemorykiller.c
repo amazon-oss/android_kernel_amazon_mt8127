@@ -162,6 +162,9 @@ static int total_low_ratio = 1;
 #endif
 
 static unsigned long lowmem_deathpending_timeout;
+#ifdef CONFIG_ARCH_MT8127_TANK
+static unsigned long lowmem_kill_timeout;
+#endif
 
 /* ACOS_MOD_BEGIN {fwk_crash_log_collection} */
 /* Declarations */
@@ -264,6 +267,16 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int max_mem = 0;
 #endif // CONFIG_MT_ENG_BUILD
 	
+#ifdef CONFIG_ARCH_MT8127_TANK
+	/* Avoid to have too many parallel executions from direct reclaim when
+       memory pressure is really critical. The cost of going through task
+       list to find one to kill is too high when allow parallel execution */
+	if (time_before_eq(jiffies, lowmem_kill_timeout) && (!current_is_kswapd())) {
+		lowmem_print(5, "skip kill for direct reclaim within kill timeout\n");
+		return 0;
+	}
+#endif
+
 	/* We are in MTKPASR stage! */
 	if (unlikely(current->flags & PF_MTKPASR)) {
 		return -1;
@@ -547,6 +560,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     min_score_adj,
 			     other_free * (long)(PAGE_SIZE / 1024));
 		lowmem_deathpending_timeout = jiffies + HZ;
+#ifdef CONFIG_ARCH_MT8127_TANK
+		/* for skipping scan from direct reclaim in next 100ms*/
+		lowmem_kill_timeout = jiffies + HZ/10;
+#endif
 
 		if ((output_expect(enable_candidate_log) && print_extra_info) || foreground_kill) { /* ACOS_MOD_ONELINE {fwk_crash_log_collection} */
 				lowmem_print(1, "low memory info:\n");

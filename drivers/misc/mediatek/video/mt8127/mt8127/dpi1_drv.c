@@ -19,13 +19,14 @@
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include "disp_drv_platform.h"
-
+#include <linux/ktime.h>
 #include "dpi_reg.h"
 #include "dsi_reg.h"
 #include "dpi1_drv.h"
 #include "lcd_drv.h"
 #include <mach/mt_clkmgr.h>
-
+#include <linux/mmprofile.h>
+#include "debug.h"
 
 #if ENABLE_DPI1_INTERRUPT
 //#include <linux/interrupt.h>
@@ -62,7 +63,7 @@ static UINT32 const PLL_SOURCE = APMIXEDSYS_BASE + 0x44;
 static BOOL s_isDpiPowerOn = FALSE;
 static DPI_REGS regBackup;
 static void (*dpiIntCallback)(DISP_INTERRUPT_EVENTS);
-
+extern ktime_t vsync_time;
 #define DPI1_REG_OFFSET(r)       offsetof(DPI_REGS, r)
 #define REG_ADDR(base, offset)  (((BYTE *)(base)) + (offset))
 
@@ -92,10 +93,10 @@ const UINT32 BACKUP_DPI1_REG_OFFSETS[] =
     DPI1_REG_OFFSET(ESAV_VTIM_RODD),
     DPI1_REG_OFFSET(ESAV_VTIM_REVEN),
 
-	
+
 	DPI1_REG_OFFSET(ESAV_FTIM),
 	DPI1_REG_OFFSET(BG_HCNTL),
-  
+
   	DPI1_REG_OFFSET(BG_VCNTL),
     DPI1_REG_OFFSET(BG_COLOR),
 	//DPI1_REG_OFFSET(TGEN_POL),
@@ -259,7 +260,7 @@ DPI_STATUS DPI1_Init(BOOL isDpiPoweredOn)
     }
 
     /*DPI1_PowerOn();*/
-	
+
     en.EN_TEST_PATERN_CTRL= 1;
     OUTREG32(&DPI1_REG->DPI_EN, AS_UINT32(&en));
 
@@ -319,6 +320,8 @@ DPI_STATUS DPI1_Init(BOOL isDpiPoweredOn)
 
 	//OUTREG32(DPI1_BASE + 0x0,  0x00000001);//
 	//DPI1_EnableClk();
+
+    //OUTREG32(DPI1_BASE + 0xf00,  0x00000041);
 
     #if 0
 	cntl = DPI1_REG->CNTL;
@@ -454,7 +457,7 @@ DPI_STATUS DPI1_Set_DrivingCurrent(LCM_PARAMS *lcm_params)
 
 DPI_STATUS DPI1_PowerOn()
 {
-        int ret = 0; 
+        int ret = 0;
 
 #ifndef CONFIG_MT6589_FPGA
 	printk("[DPI1] %s,isDpiPowerOn %d\n", __func__,s_isDpiPowerOn);
@@ -483,7 +486,7 @@ DPI_STATUS DPI1_PowerOn()
 
 DPI_STATUS DPI1_PowerOff()
 {
-  int ret = 0; 
+  int ret = 0;
 #ifndef CONFIG_MT6589_FPGA
 	printk("[DPI1] %s,isDpiPowerOn %d\n", __func__,s_isDpiPowerOn);
     if (s_isDpiPowerOn)
@@ -558,7 +561,7 @@ DPI_STATUS DPI1_ConfigPixelClk(DPI_POLARITY polarity, UINT32 divisor, UINT32 dut
 /*
     ASSERT(divisor >= 2);
     ASSERT(duty > 0 && duty < divisor);
-    
+
     ctrl.POLARITY = (DPI_POLARITY_FALLING == polarity) ? 1 : 0;
     ctrl.DIVISOR = divisor - 1;
     ctrl.DUTY = duty;
@@ -589,24 +592,24 @@ DPI_STATUS DPI1_ColorSpace_Enable(UINT8 ColorSpace)
 {
 	DPI_REG_CNTL ctrl = DPI1_REG->CNTL;
 	DPI_REG_OUTPUT_SETTING output = DPI1_REG->OUTPUT_SETTING;
-		
+
 	if((YCBCR_444 == ColorSpace) || (YCBCR_444_FULL == ColorSpace)) //YUV444
 	{
-	  ctrl.YUV422_EN = 0;	
+	  ctrl.YUV422_EN = 0;
 	  ctrl.RGB2YUV_EN= 1;
 	  ctrl.IN_RB_SWAP = 0;
 	  output.CH_SWAP = 5;
 	}
 	else if((YCBCR_422 == ColorSpace) || (YCBCR_422_FULL == ColorSpace))  //YUV422
 	{
-	  ctrl.YUV422_EN = 1;	
+	  ctrl.YUV422_EN = 1;
 	  ctrl.RGB2YUV_EN= 1;
 	  ctrl.IN_RB_SWAP = 1;
 	  output.CH_SWAP = 0;
 	}
 	else  //RGB
 	{
-	  ctrl.YUV422_EN = 0;	
+	  ctrl.YUV422_EN = 0;
 	  ctrl.RGB2YUV_EN= 0;
 	  ctrl.IN_RB_SWAP = 0;
 	  output.CH_SWAP = 0;
@@ -623,7 +626,7 @@ DPI_STATUS DPI1_Config_Ctrl(BOOL fg3DFrame, BOOL fgInterlace)
 	DPI_REG_CNTL ctrl = DPI1_REG->CNTL;
 	ctrl.TDFP_EN = fg3DFrame;
 	ctrl.INTL_EN = fgInterlace;
-	
+
 	OUTREG32(&DPI1_REG->CNTL, AS_UINT32(&ctrl));
 
     return DPI_STATUS_OK;
@@ -669,7 +672,7 @@ DPI_STATUS DPI1_ConfigVsync_LEVEN(UINT32 pulseWidth, UINT32 backPorch, UINT32 fr
     vwidth_leven.VPW_LEVEN = pulseWidth;
 	vwidth_leven.VPW_HALF_LEVEN = fgInterlace;
     vporch_leven.VBP_LEVEN = backPorch;
-	//vporch_leven.VFP_HALF_LEVEN = fgInterlace;	
+	//vporch_leven.VFP_HALF_LEVEN = fgInterlace;
     vporch_leven.VFP_LEVEN = frontPorch;
 
     OUTREG32(&DPI1_REG->TGEN_VWIDTH_LEVEN, AS_UINT32(&vwidth_leven));
@@ -705,7 +708,7 @@ DPI_STATUS DPI1_ConfigVsync_REVEN(UINT32 pulseWidth, UINT32 backPorch, UINT32 fr
     vwidth_reven.VPW_REVEN = pulseWidth;
 	vwidth_reven.VPW_HALF_REVEN = fgInterlace;
     vporch_reven.VBP_REVEN = backPorch;
-	//vporch_reven.VFP_HALF_REVEN = fgInterlace;	
+	//vporch_reven.VFP_HALF_REVEN = fgInterlace;
     vporch_reven.VFP_REVEN = frontPorch;
 
     OUTREG32(&DPI1_REG->TGEN_VWIDTH_REVEN, AS_UINT32(&vwidth_reven));
@@ -968,6 +971,88 @@ DPI_STATUS DPI1_Capture_Framebuffer(unsigned int pvbuf, unsigned int bpp)
     return DPI_STATUS_OK;
 }
 
+#if MTK_TVSTICK_HDMI_PATH
+static void _DPI1_MUTEX_IRQ_Handler(unsigned int param)
+{
+    if(dpiIntCallback)
+    {
+        #ifndef MTK_OVERLAY_ENGINE_SUPPORT
+        if (param & 1)
+        #endif
+        {
+            dpiIntCallback(DISP_DPI_REG_UPDATE_INT);
+        }
+    }
+}
+
+static void _DPI1_RDMA0_IRQ_Handler(unsigned int param)
+{
+#if MTK_DISP_DIRECTLINK
+    if (param & 1)
+    {
+        dpiIntCallback(DISP_DPI_REG_UPDATE_INT);
+    }
+#endif
+    if (param & 4)
+    {
+        MMProfileLog(MTKFB_MMP_Events.ScreenUpdate, MMProfileFlagEnd);
+        dpiIntCallback(DISP_DPI_SCREEN_UPDATE_END_INT);
+    }
+    if (param & 8)
+    {
+        MMProfileLog(MTKFB_MMP_Events.ScreenUpdate, MMProfileFlagEnd);
+    }
+    if (param & 2)
+    {
+        MMProfileLog(MTKFB_MMP_Events.ScreenUpdate, MMProfileFlagStart);
+        dpiIntCallback(DISP_DPI_SCREEN_UPDATE_START_INT);
+        vsync_time = ktime_get();
+
+#if (ENABLE_DPI1_INTERRUPT == 0)
+        if(dpiIntCallback)
+            dpiIntCallback(DISP_DPI_VSYNC_INT);
+#endif
+    }
+    if (param & 0x20)
+    {
+        dpiIntCallback(DISP_DPI_TARGET_LINE_INT);
+    }
+}
+
+void DPI1_RDMA0_Unregister()
+{
+    disp_unregister_irq(DISP_MODULE_RDMA0, _DPI1_RDMA0_IRQ_Handler);
+
+}
+
+static void _DPI1_RDMA1_IRQ_Handler(unsigned int param)
+{
+    if (param & 4)
+    {
+        //MMProfileLog(MTKFB_MMP_Events.ScreenUpdate, MMProfileFlagEnd);
+        dpiIntCallback(DISP_DPI_SCREEN_UPDATE_END_INT);
+    }
+    if (param & 8)
+    {
+        //MMProfileLog(MTKFB_MMP_Events.ScreenUpdate, MMProfileFlagEnd);
+    }
+    if (param & 2)
+    {
+        //MMProfileLog(MTKFB_MMP_Events.ScreenUpdate, MMProfileFlagStart);
+        dpiIntCallback(DISP_DPI_SCREEN_UPDATE_START_INT);
+        vsync_time = ktime_get();
+#if (ENABLE_DPI1_INTERRUPT == 0)
+        if(dpiIntCallback)
+            dpiIntCallback(DISP_DPI_VSYNC_INT);
+#endif
+    }
+    if (param & 0x20)
+    {
+        dpiIntCallback(DISP_DPI_TARGET_LINE_INT);
+    }
+}
+#endif
+
 DPI_STATUS DPI1_EnableInterrupt(DISP_INTERRUPT_EVENTS eventID)
 {
 #if ENABLE_DPI1_INTERRUPT
@@ -983,8 +1068,37 @@ DPI_STATUS DPI1_EnableInterrupt(DISP_INTERRUPT_EVENTS eventID)
 
     return DPI_STATUS_OK;
 #else
-    ///TODO: warning log here
-    return DPI_STATUS_ERROR;
+#if MTK_TVSTICK_HDMI_PATH
+			switch(eventID)
+			{
+				case DISP_DPI_VSYNC_INT:
+					//DPI_REG->INT_ENABLE.VSYNC = 1;
+					OUTREGBIT(DPI_REG_INTERRUPT,DPI1_REG->INT_ENABLE,VSYNC,1);
+					break;
+				case DISP_DPI_TARGET_LINE_INT:
+					disp_register_irq(DISP_MODULE_RDMA1, _DPI1_RDMA1_IRQ_Handler);
+					break;
+				case DISP_DPI_REG_UPDATE_INT:
+					disp_register_irq(DISP_MODULE_MUTEX, _DPI1_MUTEX_IRQ_Handler);
+                    disp_register_irq(DISP_MODULE_RDMA0, _DPI1_RDMA0_IRQ_Handler);
+                    disp_register_irq(DISP_MODULE_RDMA1, _DPI1_RDMA1_IRQ_Handler);
+					break;
+				case DISP_DPI_SCREEN_UPDATE_START_INT:
+					disp_register_irq(DISP_MODULE_RDMA1, _DPI1_RDMA1_IRQ_Handler);
+					break;
+				case DISP_DPI_SCREEN_UPDATE_END_INT:
+					disp_register_irq(DISP_MODULE_RDMA1, _DPI1_RDMA1_IRQ_Handler);
+					break;
+				default:
+					//return DPI_STATUS_ERROR;
+					return DPI_STATUS_OK;
+			}
+			return DPI_STATUS_OK;
+#else
+			///TODO: warning log here
+			return DPI_STATUS_ERROR;
+#endif
+
 #endif
 }
 
@@ -1036,8 +1150,8 @@ DPI_STATUS DPI1_EnableColorBar(void)
 	pattern.PAT_SEL = 4; // Color Bar
 
     OUTREG32(&DPI1_REG->PATTERN, AS_UINT32(&pattern));
-*/
-	OUTREG32(DPI1_BASE+0xf00, 0x41);
+
+	OUTREG32(DPI1_BASE+0xf00, 0x41);*/
 
 
     return DPI_STATUS_OK;
@@ -1239,13 +1353,13 @@ DPI_STATUS DPI1_Config_ColorSpace(UINT8 ColorSpace, UINT8 HDMI_Res)
 {
    UINT8 i=0;
    DPI_REG_CNTL ctrl = DPI1_REG->CNTL;
-   
+
    printk("[DPI1] DPI1_Config_ColorSpace: ColorSpace[%d] / HDMI Resolution[%d] \n", ColorSpace, HDMI_Res);
- 
-   if((HDMI_Res == 0) || (HDMI_Res == 1))  //SD 
+
+   if((HDMI_Res == 0) || (HDMI_Res == 1))  //SD
    {
        i = 1;
-   }  
+   }
    else  //HD
    {
    	i = 0;
@@ -1256,28 +1370,28 @@ DPI_STATUS DPI1_Config_ColorSpace(UINT8 ColorSpace, UINT8 HDMI_Res)
    //	               dpi1_coef[i][2][0], dpi1_coef[i][2][1], dpi1_coef[i][2][2]);
    //DPI1_MatrixPreOffset(dpi1_coef[i][3][0], dpi1_coef[i][3][1], dpi1_coef[i][3][2]);
    //DPI1_MatrixPostOffset(dpi1_coef[i][4][1], dpi1_coef[i][4][0], dpi1_coef[i][4][2]);
-   
-	ctrl.R601_SEL = i ;	
+
+	ctrl.R601_SEL = i ;
 	if((YCBCR_444 == ColorSpace) || (YCBCR_444_FULL == ColorSpace)) //YUV444
    {
-	  ctrl.YUV422_EN = 0;	
+	  ctrl.YUV422_EN = 0;
 	  ctrl.RGB2YUV_EN= 1;
 	   }
 	else if((YCBCR_422 == ColorSpace) || (YCBCR_422_FULL == ColorSpace))  //YUV422
 	   {
-	  ctrl.YUV422_EN = 1;	
+	  ctrl.YUV422_EN = 1;
 	  ctrl.RGB2YUV_EN= 1;
 	   }
 	else  //RGB
 	   {
-	  ctrl.YUV422_EN = 0;	
+	  ctrl.YUV422_EN = 0;
 	  ctrl.RGB2YUV_EN= 0;
 	  ctrl.R601_SEL = 0;
 	   }
 	OUTREG32(&DPI1_REG->CNTL, AS_UINT32(&ctrl));
 
    //DPI1_ColorSpace_Enable(ColorSpace);
-   
+
    return DPI_STATUS_OK;
 }
 

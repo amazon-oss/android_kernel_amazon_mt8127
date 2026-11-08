@@ -1333,9 +1333,16 @@ static int mmc_blk_issue_secdiscard_rq(struct mmc_queue *mq,
 	struct mmc_blk_data *md = mq->data;
 	struct mmc_card *card = md->queue.card;
 	unsigned int from, nr, arg;
+#ifdef CONFIG_ARCH_MT8127_TANK
+	unsigned int trim_arg, erase_arg;
+#endif
 	int err = 0, type = MMC_BLK_SECDISCARD;
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+	if (!(mmc_can_secure_erase_trim(card) || mmc_can_sanitize(card))) {
+#else
 	if (!(mmc_can_secure_erase_trim(card))) {
+#endif
 		err = -EOPNOTSUPP;
 		goto out;
 	}
@@ -1343,10 +1350,30 @@ static int mmc_blk_issue_secdiscard_rq(struct mmc_queue *mq,
 	from = blk_rq_pos(req);
 	nr = blk_rq_sectors(req);
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+	/* The sanitize operation is supported at v4.5 only */
+	if (mmc_can_sanitize(card)) {
+		erase_arg = MMC_ERASE_ARG;
+		trim_arg = MMC_TRIM_ARG;
+	} else {
+		erase_arg = MMC_SECURE_ERASE_ARG;
+		trim_arg = MMC_SECURE_TRIM1_ARG;
+	}
+
+	if (mmc_erase_group_aligned(card, from, nr))
+		arg = erase_arg;
+	else if (mmc_can_trim(card))
+		arg = trim_arg;
+	else {
+		err = -EINVAL;
+		goto out;
+	}
+#else
 	if (mmc_can_trim(card) && !mmc_erase_group_aligned(card, from, nr))
 		arg = MMC_SECURE_TRIM1_ARG;
 	else
 		arg = MMC_SECURE_ERASE_ARG;
+#endif
 
 retry:
 	if (card->quirks & MMC_QUIRK_INAND_CMD38) {
@@ -1383,6 +1410,14 @@ retry:
 			goto out;
 	}
 
+#ifdef CONFIG_ARCH_MT8127_TANK
+	if (mmc_can_sanitize(card)) {
+		trace_mmc_blk_erase_start(EXT_CSD_SANITIZE_START, 0, 0);
+		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+				 EXT_CSD_SANITIZE_START, 1, 0);
+		trace_mmc_blk_erase_end(EXT_CSD_SANITIZE_START, 0, 0);
+	}
+#endif
 out_retry:
 	if (err && !mmc_blk_reset(md, card->host, type))
 		goto retry;
@@ -3040,8 +3075,10 @@ static const struct mmc_fixup blk_fixups[] =
 #endif
 
 	/* Hynix 4.41 trim will lead boot up failed. */
+#ifndef CONFIG_ARCH_MT8127_TANK
 	MMC_FIXUP(CID_NAME_ANY, CID_MANFID_HYNIX, CID_OEMID_ANY, add_quirk_mmc,
 		  MMC_QUIRK_TRIM_UNSTABLE),
+#endif
 
 	/* KSI PRV=0x3 trim will lead write performance drop. */
 	MMC_FIXUP(CID_NAME_ANY, CID_MANFID_KSI, CID_OEMID_ANY, add_quirk_mmc_ksi_v03_skip_trim,

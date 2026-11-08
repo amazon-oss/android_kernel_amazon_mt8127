@@ -31,6 +31,7 @@
 #include "disp_ovl_engine_api.h"
 #include "disp_ovl_engine_core.h"
 #endif
+#include "disp_drv_platform.h"
 extern unsigned int lcd_fps;
 extern BOOL is_early_suspended;
 extern struct semaphore sem_early_suspend;
@@ -365,6 +366,7 @@ DISP_STATUS DISP_Init(UINT32 fbVA, UINT32 fbPA, BOOL isLcmInited)
 
     DISP_InitVSYNC((100000000/lcd_fps) + 1);//us
 
+#if !MTK_TVSTICK_HDMI_PATH
     {
         DAL_STATUS ret;
 
@@ -376,6 +378,7 @@ DISP_STATUS DISP_Init(UINT32 fbVA, UINT32 fbPA, BOOL isLcmInited)
         dal_layerPA = fbPA;
         dal_layerVA = fbVA;
     }
+#endif
     // check lcm status
     if(lcm_drv->check_status)
         lcm_drv->check_status();
@@ -1148,7 +1151,9 @@ static int _DISP_ConfigUpdateKThread(void *data)
 			}
         }
 
+#if !MTK_TVSTICK_HDMI_PATH
         if (!is_early_suspended)
+#endif
         {
             if (mutex_trylock(&OverlaySettingMutex))
             {
@@ -1230,6 +1235,7 @@ static int _DISP_ConfigUpdateKThread(void *data)
         if (dirty)
         {
             #if defined(MTK_OVERLAY_ENGINE_SUPPORT)
+            #if !MTK_DISP_DIRECTLINK
             // Apply AAL config here.
             if (aal_dirty)
             {
@@ -1251,6 +1257,7 @@ static int _DISP_ConfigUpdateKThread(void *data)
                 }
                 MMProfileLog(MTKFB_MMP_Events.ConfigAAL, MMProfileFlagEnd);
             }
+            #endif
             if ((overlay_dirty) || (mem_out_config.dirty))
             {
                 //pr_info("[OVL] overlay_dirty = %d, mem_out dirty = %d \n", overlay_dirty, mem_out_config.dirty);
@@ -1419,6 +1426,10 @@ static void _DISP_VSyncCallback(void* pParam)
 
 static void _DISP_RegUpdateCallback(void* pParam)
 {
+#if MTK_DISP_DIRECTLINK
+    atomic_set(&OverlaySettingApplied, 1);
+    wake_up(&reg_update_wq);
+#else
     MMProfileLog(MTKFB_MMP_Events.RegUpdate, MMProfileFlagPulse);
     DISP_LOG("========= captured --> realtime ===========\n");
 #if defined(MTK_OVERLAY_ENGINE_SUPPORT)
@@ -1440,6 +1451,7 @@ static void _DISP_RegUpdateCallback(void* pParam)
     }
     gWakeupCaptureOvlThread = 1;
     wake_up(&reg_update_wq);
+#endif
 }
 
 static void _DISP_TargetLineCallback(void* pParam)
@@ -1484,7 +1496,9 @@ void DISP_InitVSYNC(unsigned int vsync_interval)
     disphal_register_event("DISP_CmdDone", _DISP_CmdDoneCallback);
     disphal_register_event("DISP_RegUpdate", _DISP_RegUpdateCallback);
     disphal_register_event("DISP_VSync", _DISP_VSyncCallback);
+#if !MTK_TVSTICK_HDMI_PATH
     disphal_register_event("DISP_TargetLine", _DISP_TargetLineCallback);
+#endif
     disphal_register_event("DISP_HWDone", _DISP_HWDoneCallback);
     if ((LCM_TYPE_DBI == lcm_params->type) ||
         ((LCM_TYPE_DSI == lcm_params->type) && (CMD_MODE == lcm_params->dsi.mode)))
@@ -1691,6 +1705,7 @@ UINT32 DISP_GetVRamSize(void)
         ///get framebuffer size
         vramSize = DISP_GetFBRamSize();
 
+#if !MTK_TVSTICK_HDMI_PATH
         ///get DXI working buffer size
         vramSize += disp_if_drv->get_working_buffer_size();
 
@@ -1699,6 +1714,7 @@ UINT32 DISP_GetVRamSize(void)
 		
         // get ovl-wdma buffer size
         vramSize += DISP_GetOVLRamSize();
+#endif
 
         // Align vramSize to 1MB
         //

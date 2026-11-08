@@ -164,6 +164,17 @@ static bool musb_is_host(void)
 	musb_platform_enable(mtk_musb);
 
 #ifdef ID_PIN_USE_EX_EINT
+#ifdef CONFIG_CMD_MODE_CHANGE
+	if(mtk_musb->force_mode == USB_FORCE_HOST) {
+			printk("[USB]%s:%d is_host:%d\n", __FUNCTION__, __LINE__, mtk_musb->is_host);
+			iddig_state = 0;
+	}else if(mtk_musb->force_mode == USB_FORCE_DEVICE) {
+		printk("[USB]%s:%d is_host:%d\n", __FUNCTION__, __LINE__, mtk_musb->is_host);
+		iddig_state = 1;
+	}else{
+		printk("[USB]%s:%d error !!!!! is_host:%d\n", __FUNCTION__, __LINE__, mtk_musb->is_host);
+	}
+#else
 	/* iddig_state = mt_get_gpio_in(GPIO38); */
 	iddig_state = mt_get_gpio_in(GPIO_OTG_IDDIG_EINT_PIN);
 	DBG(0,"iddig_state = %d\n", iddig_state);
@@ -177,6 +188,7 @@ static bool musb_is_host(void)
 			DBG(0,"iddig_state = %d after sleep 50ms\n", iddig_state);
 		}
 	}
+#endif
 #endif
 #else
     iddig_state = 0 ;
@@ -229,6 +241,11 @@ void musb_session_restart(struct musb *musb)
 
 void switch_int_to_device(struct musb *musb)
 {
+#ifdef CONFIG_CMD_MODE_CHANGE
+	printk("[USB]%s:%d force mode:%d\n", __FUNCTION__, __LINE__, mtk_musb->force_mode);
+	return;
+#endif
+
 #ifdef ID_PIN_USE_EX_EINT
     mt_eint_set_polarity(IDDIG_EINT_PIN, MT_EINT_POL_POS);
 	mt_eint_unmask(IDDIG_EINT_PIN);
@@ -241,6 +258,11 @@ void switch_int_to_device(struct musb *musb)
 
 void switch_int_to_host(struct musb *musb)
 {
+#ifdef CONFIG_CMD_MODE_CHANGE
+		printk("[USB]%s:%d force mode:%d\n", __FUNCTION__, __LINE__, mtk_musb->force_mode);
+		return;
+#endif
+
 #ifdef ID_PIN_USE_EX_EINT
     mt_eint_set_polarity(IDDIG_EINT_PIN, MT_EINT_POL_NEG);
 	mt_eint_unmask(IDDIG_EINT_PIN);
@@ -254,6 +276,11 @@ void switch_int_to_host(struct musb *musb)
 
 void switch_int_to_host_and_mask(struct musb *musb)
 {
+#ifdef CONFIG_CMD_MODE_CHANGE
+		printk("[USB]%s:%d force mode:%d\n", __FUNCTION__, __LINE__, mtk_musb->force_mode);
+		return;
+#endif
+
 #ifdef ID_PIN_USE_EX_EINT
     mt_eint_set_polarity(IDDIG_EINT_PIN, MT_EINT_POL_NEG);
 	mt_eint_mask(IDDIG_EINT_PIN);
@@ -286,6 +313,12 @@ static void musb_id_pin_work(struct work_struct *data)
 	#if CONFIG_AUSTIN_PROJECT
 	wake_lock(&mtk_musb->usb_lock);
     #endif
+#ifdef CONFIG_GPIO_USB_DEFAULT_DEVICE_MODE
+	if(mtk_musb->is_host){
+		mt_usb_disconnect();
+		msleep(10);
+	}
+#endif
 	mtk_musb ->is_host = musb_is_host();
 	DBG(0,"musb is as %s\n",mtk_musb->is_host?"host":"device");
 	switch_set_state((struct switch_dev *)&otg_state, mtk_musb->is_host);
@@ -302,7 +335,9 @@ static void musb_id_pin_work(struct work_struct *data)
 		#else
 			wake_lock(&mtk_musb->usb_lock);
 		#endif
+#ifndef CONFIG_CMD_MODE_CHANGE
 		musb_platform_set_vbus(mtk_musb, 1);
+#endif
 
         /* for no VBUS sensing IP*/
         #if 1
@@ -344,7 +379,9 @@ static void musb_id_pin_work(struct work_struct *data)
 		musb_writeb(mtk_musb->mregs,MUSB_DEVCTL,0);
 		if (wake_lock_active(&mtk_musb->usb_lock))
 			wake_unlock(&mtk_musb->usb_lock);
+#ifndef CONFIG_CMD_MODE_CHANGE
 		musb_platform_set_vbus(mtk_musb, 0);
+#endif
 
         /* for no VBUS sensing IP */
         #if 1
@@ -375,11 +412,16 @@ out:
 
 }
 
-static void mt_usb_ext_iddig_int(void)
+void mt_usb_ext_iddig_int(void)
 {
     if (!mtk_musb->is_ready) {
+#ifdef CONFIG_ARCH_MT8127_TANK
+        /* dealy 5 sec if usb function is not ready */
+        schedule_delayed_work(&mtk_musb->id_pin_work,5000*HZ/1000);
+#else
         /* dealy 7 sec if usb function is not ready */
         schedule_delayed_work(&mtk_musb->id_pin_work,7000*HZ/1000);
+#endif
     } else {
         schedule_delayed_work(&mtk_musb->id_pin_work,sw_deboun_time*HZ/1000);
     }
@@ -411,7 +453,11 @@ void mt_usb_iddig_int(struct musb *musb)
 void static otg_int_init(void)
 {
 #ifdef ID_PIN_USE_EX_EINT
+#ifdef CONFIG_ARCH_MT8127_TANK
+	mt_set_gpio_mode(GPIO_OTG_IDDIG_EINT_PIN, GPIO_MODE_02);
+#else
 	mt_set_gpio_mode(GPIO_OTG_IDDIG_EINT_PIN, GPIO_MODE_00);
+#endif
 	mt_set_gpio_dir(GPIO_OTG_IDDIG_EINT_PIN, GPIO_DIR_IN);
 	mt_set_gpio_pull_enable(GPIO_OTG_IDDIG_EINT_PIN, GPIO_PULL_ENABLE);
 	mt_set_gpio_pull_select(GPIO_OTG_IDDIG_EINT_PIN, GPIO_PULL_UP);

@@ -102,7 +102,7 @@ void mali_session_memory_tracking(struct seq_file  *print_ctx)
 	_mali_osk_ctxprintf(print_ctx, "Mali mem usage: %u\nMali mem limit: %u\n", mali_mem_usage, total_mali_mem_size);
 }
 
-/* ACOS_MOD_BEGIN {fwk_crash_log_collection} */
+// ACOS_MOD_BEGIN {fwk_crash_log_collection}
 void lmk_add_to_buffer(const char * fmt, ...);
 
 void mali_session_memory_tracking_lmk()
@@ -127,4 +127,4 @@ void mali_session_memory_tracking_lmk()
 	total_mali_mem_size = _mali_ukk_report_total_memory_size();
 	lmk_add_to_buffer("Mali mem usage: %u\nMali mem limit: %u\n", mali_mem_usage, total_mali_mem_size);
 }
-/* ACOS_MOD_END {fwk_crash_log_collection} */
+// ACOS_MOD_END {fwk_crash_log_collection}

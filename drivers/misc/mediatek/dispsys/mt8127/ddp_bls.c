@@ -466,6 +466,7 @@ void disp_bls_update_pwm_lut(void)
 
 void disp_bls_init(unsigned int srcWidth, unsigned int srcHeight)
 {
+#ifdef CONFIG_MTK_LEDS
     struct cust_mt65xx_led *cust_led_list = get_cust_led_list();
     struct cust_mt65xx_led *cust = NULL;
     struct PWM_config *config_data = NULL;
@@ -487,6 +488,7 @@ void disp_bls_init(unsigned int srcWidth, unsigned int srcHeight)
             BLS_MSG("disp_bls_init : PWM config data (%d,%d)\n", config_data->clock_source, config_data->div);
         }
     }
+#endif
         
     BLS_DBG("disp_bls_init : srcWidth = %d, srcHeight = %d\n", srcWidth, srcHeight);
     BLS_MSG("disp_bls_init : BLS_EN=0x%x, PWM_DUTY=%d, PWM_DUTY_RD=%d, CG=0x%x, %d, %d\n", 
@@ -516,6 +518,7 @@ void disp_bls_init(unsigned int srcWidth, unsigned int srcHeight)
 int disp_bls_config(void)
 {
 #if !defined(CONFIG_MTK_AAL_SUPPORT)
+#ifdef CONFIG_MTK_LEDS
     struct cust_mt65xx_led *cust_led_list = get_cust_led_list();
     struct cust_mt65xx_led *cust = NULL;
     struct PWM_config *config_data = NULL;
@@ -537,6 +540,7 @@ int disp_bls_config(void)
             BLS_MSG("disp_bls_config : PWM config data (%d,%d)\n", config_data->clock_source, config_data->div);
         }
     }
+#endif
     
     if (!clock_is_on(MT_CG_DISP0_MDP_BLS_26M) || !gBLSPowerOn)
     {
