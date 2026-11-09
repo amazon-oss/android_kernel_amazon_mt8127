@@ -1,4 +1,5 @@
 #ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
+#include <linux/ratelimit.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
@@ -361,6 +362,8 @@ bool fgCaHDMIAudioUnMute(bool fgen)
 	return TRUE;
 }
 
+static DEFINE_RATELIMIT_STATE(hdcp_fail_rs, 60 * HZ, 1);
+
 void vCaHDCPFailState(unsigned int u4addr, unsigned int u4data)
 {
 	TZ_RESULT tz_ret = 0;
@@ -375,7 +378,8 @@ void vCaHDCPFailState(unsigned int u4addr, unsigned int u4data)
 	param[0].value.b = 0;
 	param[1].value.a = u4data;
 	param[1].value.b = 0;
-	pr_err("hdmi hdcp fail para1=%d, para2=%d\n", u4addr, u4data);
+	if (__ratelimit(&hdcp_fail_rs))
+		pr_err("hdmi hdcp fail para1=%d, para2=%d\n", u4addr, u4data);
 	ghdcp_auth_status = 0;
 	hdmi_audio_signal_state(0);
 	tz_ret = KREE_TeeServiceCall(ca_hdmi_handle, HDMI_TA_HDCP_FAIL,
