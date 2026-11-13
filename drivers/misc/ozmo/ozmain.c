@@ -30,12 +30,25 @@ int is_registered = 0;
 /*
  * Register ozwpan when a p2p-p2p0-* interface is up.
  */
-static int ozwpan_register(void)
+static char ozwpan_dev[IFNAMSIZ];
+
+static bool ozwpan_match(const char *name)
+{
+	size_t len = strlen(g_net_dev);
+
+	if (len && g_net_dev[len - 1] == '*')
+		return !strncmp(name, g_net_dev, len - 1);
+
+	return !strcmp(name, g_net_dev);
+}
+
+static int ozwpan_register(const char *name)
 {
 	if (!is_registered) {
-		printk("OZWPAN: register\n");
+		printk("OZWPAN: register %s\n", name);
 
-		if (oz_protocol_init(g_net_dev))
+		strlcpy(ozwpan_dev, name, sizeof(ozwpan_dev));
+		if (oz_protocol_init(ozwpan_dev))
 			return -1;
 
 		is_registered = 1;
@@ -74,14 +87,15 @@ static int ozwpan_netdev_event(struct notifier_block *this, unsigned long event,
 	struct net_device *dev = (struct net_device *)ptr;
 
 	printk("OZWPAN: receive %lu from %s\n", event, dev->name);
-	if (strcmp(dev->name, g_net_dev) == 0) {
+	if (ozwpan_match(dev->name)) {
 		switch (event) {
 		case NETDEV_UP:
-			ozwpan_register();
+			ozwpan_register(dev->name);
 			break;
 
 		case NETDEV_GOING_DOWN:
-			ozwpan_deregister();
+			if (!strcmp(dev->name, ozwpan_dev))
+				ozwpan_deregister();
 			break;
 
 		default:
@@ -105,14 +119,8 @@ static struct notifier_block ozwpan_netdev_notifier = {
  */
 static int __init ozwpan_init(void)
 {
-	/* init ozwpan driver */
-	if (ozwpan_register())
-		return -1;
-
 	/* register netdev event */
-	register_netdevice_notifier(&ozwpan_netdev_notifier);
-
-	return 0;
+	return register_netdevice_notifier(&ozwpan_netdev_notifier);
 }
 
 /*------------------------------------------------------------------------------
